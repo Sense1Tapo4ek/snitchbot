@@ -1,0 +1,327 @@
+---
+import Paper from "../Paper.astro";
+import SectionHead from "../SectionHead.astro";
+---
+<Paper>
+  <SectionHead label="04 · architecture">
+    <Fragment slot="title">
+      Three processes,<br />
+      <span style="color: var(--color-accent); font-style: normal; font-weight: 500;">two wires.</span>
+    </Fragment>
+    <Fragment slot="lede">
+      Your service stays thin. A detached sidecar carries the weight — HTTP, dedup, rate-limit, vitals, interactive commands. They talk over an AF_UNIX datagram socket in microseconds, so nothing you write ever waits on Telegram.
+    </Fragment>
+  </SectionHead>
+
+  <div class="diagram-wrap">
+    <svg class="diagram" viewBox="0 0 1200 560" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="arch-title arch-desc">
+      <title id="arch-title">snitchbot architecture</title>
+      <desc id="arch-desc">
+        Three processes connected by two wires. The host process (pid 101) runs your
+        Python service and the snitchbot client, and uses under 10 MB of memory. The
+        sidecar process (pid 102) is async and isolated, runs the dedup, queue,
+        rate-limit, render, and scrub pipeline, and uses about 43 MB. It talks to
+        the host over AF_UNIX SOCK_DGRAM with msgpack, and to Telegram over HTTPS.
+        Telegram commands come back via long polling.
+      </desc>
+      <defs>
+        <marker id="arrow-vermillion" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#b54b3c"/>
+        </marker>
+        <marker id="arrow-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#8a7a5f"/>
+        </marker>
+      </defs>
+
+      <!-- Column 1 — HOST PROCESS -->
+      <g transform="translate(20, 60)">
+        <text x="0" y="0" class="col-kind">01 · host process</text>
+        <text x="0" y="22" class="col-title">your Python service</text>
+        <rect x="0" y="42" width="340" height="420" fill="none" stroke="#1e1a15" stroke-width="1.4" rx="6"/>
+
+        <g transform="translate(280, 36)">
+          <rect x="-8" y="-4" width="68" height="20" fill="#f2ebdc" stroke="#1e1a15" stroke-width="1" rx="2"/>
+          <text x="26" y="10" text-anchor="middle" class="chip" style="fill:#1e1a15">pid 101</text>
+        </g>
+
+        <g transform="translate(20, 66)">
+          <rect x="0" y="0" width="300" height="82" fill="rgba(181,75,60,0.05)" stroke="rgba(30,26,21,0.2)" stroke-width="1" stroke-dasharray="2,3" rx="4"/>
+          <text x="14" y="22" class="item-label" style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:14px;">your code</text>
+          <text x="14" y="42" class="item-sub">fastapi · litestar · flask · cli · worker</text>
+          <text x="14" y="60" class="item-sub">— decorate with @watch_slow, call notify(),</text>
+          <text x="14" y="74" class="item-sub">   wrap scope in request_context()</text>
+        </g>
+
+        <g transform="translate(20, 164)">
+          <rect x="0" y="0" width="300" height="208" fill="#1e1a15" rx="4"/>
+          <text x="14" y="22" style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;fill:#f2ebdc">snitchbot.client</text>
+          <text x="14" y="38" class="item-sub" style="fill:#a89880">thin · synchronous-safe · fire-and-forget</text>
+
+          <line x1="14" y1="52" x2="286" y2="52" stroke="rgba(242,235,220,0.15)"/>
+
+          <text x="14" y="72" class="item-label" style="fill:#f2ebdc">hooks</text>
+          <text x="14" y="88" class="item-sub" style="fill:#a89880">· sys.excepthook · threading.excepthook</text>
+          <text x="14" y="102" class="item-sub" style="fill:#a89880">· asyncio exception handler</text>
+          <text x="14" y="116" class="item-sub" style="fill:#a89880">· signal (SIGTERM/SIGINT) · atexit</text>
+
+          <text x="14" y="142" class="item-label" style="fill:#f2ebdc">watchdog</text>
+          <text x="14" y="158" class="item-sub" style="fill:#a89880">pinger coroutine + observer thread</text>
+
+          <text x="14" y="184" class="item-label" style="fill:#f2ebdc">transport</text>
+          <text x="14" y="200" class="item-sub" style="fill:#a89880">AF_UNIX SOCK_DGRAM, non-blocking</text>
+        </g>
+
+        <g transform="translate(20, 392)">
+          <text x="0" y="0" class="chip">footprint</text>
+          <text x="0" y="30" class="num-big">&lt; 10 MB</text>
+          <text x="110" y="30" class="item-sub" style="font-size:11px">added to your process</text>
+          <text x="110" y="44" class="item-sub" style="font-size:10px">1 dep (msgpack) · no httpx, no psutil</text>
+        </g>
+      </g>
+
+      <!-- Arrow 1 — Host -> Sidecar -->
+      <g transform="translate(365, 260)">
+        <line x1="0" y1="-40" x2="120" y2="-40" stroke="#b54b3c" stroke-width="2" marker-end="url(#arrow-vermillion)"/>
+        <text x="60" y="-66" text-anchor="middle" class="wire-label">AF_UNIX</text>
+        <text x="60" y="-52" text-anchor="middle" class="wire-label">SOCK_DGRAM</text>
+        <text x="60" y="-22" text-anchor="middle" class="wire-sub">msgpack · ~µs</text>
+      </g>
+
+      <!-- Column 2 — SIDECAR -->
+      <g transform="translate(490, 60)">
+        <text x="0" y="0" class="col-kind">02 · sidecar process</text>
+        <text x="0" y="22" class="col-title">async · isolated · does the work</text>
+        <rect x="0" y="42" width="340" height="420" fill="none" stroke="#1e1a15" stroke-width="1.4" rx="6"/>
+
+        <g transform="translate(280, 36)">
+          <rect x="-8" y="-4" width="68" height="20" fill="#f2ebdc" stroke="#1e1a15" stroke-width="1" rx="2"/>
+          <text x="26" y="10" text-anchor="middle" class="chip" style="fill:#1e1a15">pid 102</text>
+        </g>
+
+        <g transform="translate(20, 66)">
+          <rect x="0" y="0" width="140" height="60" fill="rgba(30,26,21,0.05)" stroke="rgba(30,26,21,0.25)" stroke-width="1" rx="4"/>
+          <text x="12" y="22" class="item-label">ingest</text>
+          <text x="12" y="40" class="item-sub">recv loop · client</text>
+          <text x="12" y="52" class="item-sub">registry · handshake</text>
+        </g>
+
+        <g transform="translate(180, 66)">
+          <rect x="0" y="0" width="140" height="60" fill="rgba(30,26,21,0.05)" stroke="rgba(30,26,21,0.25)" stroke-width="1" rx="4"/>
+          <text x="12" y="22" class="item-label">vitals</text>
+          <text x="12" y="40" class="item-sub">psutil sampler</text>
+          <text x="12" y="52" class="item-sub">anomaly detectors</text>
+        </g>
+
+        <g transform="translate(20, 140)">
+          <rect x="0" y="0" width="300" height="150" fill="rgba(181,75,60,0.08)" stroke="#b54b3c" stroke-width="1.2" rx="4"/>
+          <text x="12" y="22" style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;fill:#1e1a15">pipeline</text>
+          <text x="12" y="38" class="item-sub">single event flow, stage by stage</text>
+
+          <g transform="translate(12, 54)">
+            <rect x="0" y="0" width="58" height="30" fill="#f2ebdc" stroke="rgba(30,26,21,0.3)" stroke-width="1" rx="2"/>
+            <text x="29" y="12" text-anchor="middle" class="item-label" style="font-size:9.5px">dedup</text>
+            <text x="29" y="24" text-anchor="middle" class="item-sub" style="font-size:8.5px">5 min · ×N</text>
+
+            <line x1="58" y1="15" x2="64" y2="15" stroke="#b54b3c" stroke-width="1.2" marker-end="url(#arrow-vermillion)"/>
+
+            <rect x="66" y="0" width="46" height="30" fill="#f2ebdc" stroke="rgba(30,26,21,0.3)" stroke-width="1" rx="2"/>
+            <text x="89" y="12" text-anchor="middle" class="item-label" style="font-size:9.5px">queue</text>
+            <text x="89" y="24" text-anchor="middle" class="item-sub" style="font-size:8.5px">priority</text>
+
+            <line x1="112" y1="15" x2="118" y2="15" stroke="#b54b3c" stroke-width="1.2" marker-end="url(#arrow-vermillion)"/>
+
+            <rect x="120" y="0" width="58" height="30" fill="#f2ebdc" stroke="rgba(30,26,21,0.3)" stroke-width="1" rx="2"/>
+            <text x="149" y="12" text-anchor="middle" class="item-label" style="font-size:9.5px">rate-limit</text>
+            <text x="149" y="24" text-anchor="middle" class="item-sub" style="font-size:8.5px">30 tok/s</text>
+
+            <line x1="178" y1="15" x2="184" y2="15" stroke="#b54b3c" stroke-width="1.2" marker-end="url(#arrow-vermillion)"/>
+
+            <rect x="186" y="0" width="44" height="30" fill="#f2ebdc" stroke="rgba(30,26,21,0.3)" stroke-width="1" rx="2"/>
+            <text x="208" y="12" text-anchor="middle" class="item-label" style="font-size:9.5px">render</text>
+            <text x="208" y="24" text-anchor="middle" class="item-sub" style="font-size:8.5px">HTML</text>
+
+            <line x1="230" y1="15" x2="236" y2="15" stroke="#b54b3c" stroke-width="1.2" marker-end="url(#arrow-vermillion)"/>
+
+            <rect x="238" y="0" width="44" height="30" fill="#f2ebdc" stroke="rgba(30,26,21,0.3)" stroke-width="1" rx="2"/>
+            <text x="260" y="12" text-anchor="middle" class="item-label" style="font-size:9.5px">scrub</text>
+            <text x="260" y="24" text-anchor="middle" class="item-sub" style="font-size:8.5px">secrets</text>
+          </g>
+
+          <text x="12" y="108" class="item-sub" style="font-size:11px;fill:#4a4034">
+            <tspan x="12" dy="0">secret scrubbing between render and send — tokens,</tspan>
+            <tspan x="12" dy="14">keys, passwords never reach Telegram.</tspan>
+          </text>
+        </g>
+
+        <g transform="translate(20, 304)">
+          <rect x="0" y="0" width="140" height="64" fill="rgba(30,26,21,0.05)" stroke="rgba(30,26,21,0.25)" stroke-width="1" rx="4"/>
+          <text x="12" y="22" class="item-label">interactive</text>
+          <text x="12" y="40" class="item-sub">/status /chart /last</text>
+          <text x="12" y="54" class="item-sub">/export /mute /test</text>
+        </g>
+
+        <g transform="translate(180, 304)">
+          <rect x="0" y="0" width="140" height="64" fill="rgba(30,26,21,0.05)" stroke="rgba(30,26,21,0.25)" stroke-width="1" rx="4"/>
+          <text x="12" y="22" class="item-label">live dashboard</text>
+          <text x="12" y="40" class="item-sub">single pinned msg</text>
+          <text x="12" y="54" class="item-sub">edits in place</text>
+        </g>
+
+        <g transform="translate(20, 392)">
+          <text x="0" y="0" class="chip">footprint</text>
+          <text x="0" y="30" class="num-big">~43 MB</text>
+          <text x="110" y="30" class="item-sub" style="font-size:11px">RSS, isolated from your process</text>
+          <text x="110" y="44" class="item-sub" style="font-size:10px">one per service · crashes here don't crash you</text>
+        </g>
+      </g>
+
+      <!-- Arrow 2 — Sidecar -> Telegram -->
+      <g transform="translate(835, 230)">
+        <line x1="0" y1="0" x2="120" y2="0" stroke="#b54b3c" stroke-width="2" marker-end="url(#arrow-vermillion)"/>
+        <text x="60" y="-14" text-anchor="middle" class="wire-label">HTTPS · bot api</text>
+      </g>
+
+      <!-- Arrow 3 — Telegram -> Sidecar -->
+      <g transform="translate(835, 300)">
+        <line x1="120" y1="0" x2="0" y2="0" stroke="#8a7a5f" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-back)"/>
+        <text x="60" y="18" text-anchor="middle" class="wire-sub">commands · long-poll</text>
+      </g>
+
+      <!-- Column 3 — TELEGRAM -->
+      <g transform="translate(960, 60)">
+        <text x="0" y="0" class="col-kind">03 · telegram</text>
+        <text x="0" y="22" class="col-title">bot api · your chat</text>
+        <rect x="0" y="42" width="220" height="420" fill="none" stroke="#1e1a15" stroke-width="1.4" rx="6"/>
+
+        <g transform="translate(20, 64)">
+          <circle cx="14" cy="14" r="12" fill="#b54b3c"/>
+          <text x="14" y="19" text-anchor="middle" style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:14px;fill:#f2ebdc">見</text>
+          <text x="34" y="12" class="item-label" style="font-size:11px">snitchbot · orders-api</text>
+          <text x="34" y="25" class="item-sub">bot · private</text>
+
+          <line x1="0" y1="38" x2="180" y2="38" stroke="rgba(30,26,21,0.12)"/>
+
+          <g transform="translate(0, 52)">
+            <rect x="0" y="0" width="150" height="36" fill="rgba(30,26,21,0.06)" rx="4"/>
+            <text x="8" y="14" class="item-label" style="font-size:9.5px">🔴 crash · orders-api</text>
+            <text x="8" y="26" class="item-sub" style="font-size:9px">DatabaseConnectionError</text>
+          </g>
+
+          <g transform="translate(0, 96)">
+            <rect x="0" y="0" width="150" height="36" fill="rgba(30,26,21,0.06)" rx="4"/>
+            <text x="8" y="14" class="item-label" style="font-size:9.5px">🟠 slow call</text>
+            <text x="8" y="26" class="item-sub" style="font-size:9px">fetch_all took 1843 ms</text>
+          </g>
+
+          <g transform="translate(0, 140)">
+            <rect x="0" y="0" width="150" height="36" fill="rgba(30,26,21,0.06)" rx="4"/>
+            <text x="8" y="14" class="item-label" style="font-size:9.5px">🟠 anomaly · RSS</text>
+            <text x="8" y="26" class="item-sub" style="font-size:9px">183 MB (+160%)</text>
+          </g>
+
+          <g transform="translate(0, 192)">
+            <rect x="0" y="0" width="180" height="64" fill="rgba(181,75,60,0.08)" stroke="#b54b3c" stroke-width="1" stroke-dasharray="3,2" rx="4"/>
+            <text x="8" y="14" class="chip" style="font-size:8.5px">📌 pinned · live</text>
+            <text x="8" y="30" class="item-sub" style="font-size:9.5px">cpu 42% · rss 82 MB</text>
+            <text x="8" y="44" class="item-sub" style="font-size:9.5px">fds 26 · threads 12</text>
+            <text x="8" y="58" class="item-sub" style="font-size:8.5px;fill:#8a7a5f">updates every 5 s</text>
+          </g>
+
+          <g transform="translate(0, 288)">
+            <rect x="0" y="0" width="180" height="28" fill="#f2ebdc" stroke="rgba(30,26,21,0.2)" stroke-width="1" rx="4"/>
+            <text x="8" y="18" class="item-sub" style="font-size:10px;fill:#8a7a5f">/status /last /mute /chart</text>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <div class="callouts">
+    <div class="callout">
+      <div class="kind">why a sidecar</div>
+      <div class="q">Observability should never crash production.</div>
+      <div class="a">
+        Telegram's HTTPS can hang for seconds during degradation. Anomaly detectors need <code>psutil</code>. Rate-limit state needs memory. None of that belongs in your hot path — so we put it in its own process. If the sidecar dies, your app doesn't.
+      </div>
+    </div>
+    <div class="callout">
+      <div class="kind">why AF_UNIX · SOCK_DGRAM</div>
+      <div class="q">Fastest IPC that can't block.</div>
+      <div class="a">
+        <code>SOCK_DGRAM</code> = kernel-level datagram. A <code>send()</code> takes microseconds, buffered atomically by the kernel. No TCP handshake, no TLS, no user-space queue. <code>msgpack</code> keeps the payload compact — <code>pydantic</code>, <code>httpx</code>, <code>psutil</code> stay out of your process.
+      </div>
+    </div>
+    <div class="callout">
+      <div class="kind">why long-polling</div>
+      <div class="q">Your service doesn't need a public endpoint.</div>
+      <div class="a">
+        The sidecar calls Telegram's <code>getUpdates</code> — commands come back in the response. Works behind NAT, inside Docker, on a laptop. No webhook, no reverse proxy, no TLS cert. <code>/status /chart /export /mute</code> all travel this way.
+      </div>
+    </div>
+  </div>
+</Paper>
+
+<style>
+  .diagram { width: 100%; height: auto; display: block; font-family: var(--font-body); }
+
+  .diagram :global(.col-title) { font-family: var(--font-display); font-style: italic; font-size: 20px; fill: var(--color-sumi); }
+  .diagram :global(.col-kind) { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.22em; text-transform: uppercase; fill: var(--color-ink-faded); }
+  .diagram :global(.item-label) { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; fill: var(--color-sumi); }
+  .diagram :global(.item-sub) { font-family: var(--font-body); font-size: 10px; fill: var(--color-ink-muted); }
+  .diagram :global(.wire-label) { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; fill: var(--color-accent); font-weight: 500; }
+  .diagram :global(.wire-sub) { font-family: var(--font-body); font-size: 10px; fill: var(--color-ink-faded); font-style: italic; }
+  .diagram :global(.chip) { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; fill: var(--color-accent-soft); }
+  .diagram :global(.num-big) { font-family: var(--font-display); font-style: italic; font-size: 26px; fill: var(--color-accent); }
+
+  .callouts {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border-top: 1px solid rgba(30, 26, 21, 0.15);
+    padding-top: 28px;
+  }
+  .callout {
+    padding: 0 22px;
+    border-left: 1px solid rgba(30, 26, 21, 0.15);
+  }
+  .callout:first-child {
+    border-left: none;
+    padding-left: 0;
+  }
+  .callout .kind {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin-bottom: 10px;
+  }
+  .callout .q {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 20px;
+    color: var(--color-sumi);
+    line-height: 1.3;
+    margin-bottom: 10px;
+  }
+  .callout .a {
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    color: var(--color-sumi-soft);
+    line-height: 1.6;
+  }
+  .callout .a code {
+    font-family: var(--font-mono);
+    background: rgba(181, 75, 60, 0.08);
+    color: var(--color-accent-soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  @media (max-width: 900px) {
+    .callouts { grid-template-columns: 1fr; gap: 24px; }
+    .callout { border-left: none; padding-left: 0; }
+  }
+</style>

@@ -1,0 +1,91 @@
+---
+import TgWindow from "../telegram/TgWindow.astro";
+
+interface Props {
+  service: string;
+  tgHtml: string;
+  hidden?: boolean;
+}
+const { service, tgHtml, hidden = false } = Astro.props;
+---
+<div class="tg-case" data-hidden={hidden ? "true" : "false"}>
+  <TgWindow service={service} minHeight="580px">
+    <Fragment set:html={tgHtml} />
+  </TgWindow>
+</div>
+
+<style>
+  .tg-case[data-hidden="true"] { display: none; }
+  .tg-case { height: 580px; display: flex; flex-direction: column; }
+  .tg-case :global(.tg) { height: 100%; min-height: 0; }
+  .tg-case :global(.tg__body) { flex: 1; min-height: 0; max-height: none; }
+
+  .tg-case :global(.accent) { color: #ff7a5c; }
+  .tg-case :global(.critical) { color: #c77dff; }
+  .tg-case :global(.counter) { color: #8fa3b4; font-weight: 400; }
+  .tg-case :global(.sep) { color: #4a5a6a; letter-spacing: -0.5px; }
+  .tg-case :global(.tg-btn-row) {
+    margin-top: 6px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .tg-case :global(.tg-btn) {
+    background: #2b5278;
+    color: #fff;
+    padding: 4px 9px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid #345c84;
+  }
+  .tg-case :global(.tg-msg) {
+    background: #182533;
+    max-width: 92%;
+    align-self: flex-start;
+    border-radius: 10px 10px 10px 4px;
+    padding: 8px 11px 6px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: #eaeef2;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  }
+  .tg-case :global(.tg-msg b) { font-weight: 600; color: #fff; }
+  .tg-case :global(.tg-msg code) {
+    font-family: var(--font-mono);
+    background: #0f1a24;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11.5px;
+    color: #eaeef2;
+  }
+  .tg-case :global(.tg-msg pre) {
+    font-family: var(--font-mono);
+    background: #0a1017;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.5;
+    margin: 6px 0 2px;
+    color: #c8d0d8;
+    white-space: pre-wrap;
+    border-left: 2px solid #b54b3c;
+  }
+  .tg-case :global(.meta-table) {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: #a8b3bd;
+    white-space: pre;
+    margin-top: 2px;
+  }
+  .tg-case :global(.meta-table b) { color: #fff; }
+  .tg-case :global(.tg-msg__time) {
+    font-size: 10px;
+    color: #6a7b8a;
+    float: right;
+    margin-left: 6px;
+    margin-top: 3px;
+  }
+</style>

@@ -1,0 +1,68 @@
+---
+interface Props {
+  sent?: boolean;
+  time?: string;
+}
+const { sent = false, time } = Astro.props;
+---
+<div class:list={["tg-msg", { "tg-msg--sent": sent }]}>
+  <slot />
+  {time && <span class="tg-msg__time">{time}</span>}
+</div>
+
+<style>
+  .tg-msg {
+    background: var(--color-tg-bubble);
+    max-width: 92%;
+    align-self: flex-start;
+    border-radius: 10px 10px 10px 4px;
+    padding: 8px 11px 6px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--color-tg-text);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  }
+  .tg-msg--sent {
+    background: var(--color-tg-sent);
+    align-self: flex-end;
+    border-radius: 10px 10px 4px 10px;
+  }
+  .tg-msg :global(b) { font-weight: 600; color: #fff; }
+  .tg-msg :global(code) {
+    font-family: var(--font-mono);
+    background: #0f1a24;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11.5px;
+    color: var(--color-tg-text);
+  }
+  .tg-msg--sent :global(code) { background: #1f3a57; }
+  .tg-msg :global(pre) {
+    font-family: var(--font-mono);
+    background: #0a1017;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.5;
+    margin: 6px 0 2px;
+    color: #c8d0d8;
+    white-space: pre-wrap;
+    border-left: 2px solid var(--color-accent);
+  }
+  .tg-msg :global(.meta-table) {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: #a8b3bd;
+    white-space: pre;
+    margin-top: 2px;
+  }
+  .tg-msg :global(.meta-table b) { color: #fff; }
+  .tg-msg__time {
+    font-size: 10px;
+    color: var(--color-tg-muted);
+    float: right;
+    margin-left: 6px;
+    margin-top: 3px;
+  }
+</style>

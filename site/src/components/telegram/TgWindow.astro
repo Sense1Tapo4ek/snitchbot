@@ -1,0 +1,107 @@
+---
+interface Props {
+  service: string;
+  minHeight?: string;
+  showCommands?: boolean;
+  day?: string;
+}
+const {
+  service,
+  minHeight = "580px",
+  showCommands = true,
+  day = "Apr 17",
+} = Astro.props;
+---
+<div class="tg" style={`min-height: ${minHeight}`}>
+  <header class="tg__head">
+    <div class="tg__avatar" aria-hidden="true">見</div>
+    <div class="tg__title-block">
+      <div class="tg__title">snitchbot · {service}</div>
+      <div class="tg__sub">bot · private</div>
+    </div>
+    <div class="tg__icons" aria-hidden="true">⌕ ⋮</div>
+  </header>
+  <div class="tg__body">
+    <div class="tg__day">{day}</div>
+    <slot />
+  </div>
+  {showCommands && (
+    <div class="tg__input">
+      <div class="tg__input-txt">Message</div>
+      <div class="tg__commands">
+        <b>/status</b> <b>/last</b> <b>/mute</b>
+      </div>
+    </div>
+  )}
+</div>
+
+<style>
+  .tg {
+    background: var(--color-tg-surface);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow:
+      0 4px 16px rgba(30, 26, 21, 0.12),
+      0 20px 40px rgba(30, 26, 21, 0.08);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    color: var(--color-tg-text);
+  }
+  .tg__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 16px;
+    background: var(--color-tg-surface);
+    border-bottom: 1px solid #0f1a24;
+  }
+  .tg__avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #b54b3c, #7a2e24);
+    color: var(--color-paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 19px;
+    font-weight: 500;
+    font-style: italic;
+  }
+  .tg__title-block { flex: 1; line-height: 1.2; }
+  .tg__title { font-size: 14px; font-weight: 600; color: #fff; }
+  .tg__sub { font-size: 12px; color: var(--color-tg-muted); margin-top: 2px; }
+  .tg__icons { color: var(--color-tg-muted); display: flex; gap: 16px; font-size: 15px; }
+  .tg__body {
+    flex: 1;
+    background: var(--color-tg-bg);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    max-height: 540px;
+  }
+  .tg__day {
+    align-self: center;
+    background: rgba(23, 33, 43, 0.7);
+    color: #8fa3b4;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin: 2px 0 6px;
+  }
+  .tg__input {
+    background: var(--color-tg-surface);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-top: 1px solid #0f1a24;
+  }
+  .tg__input-txt { flex: 1; color: var(--color-tg-muted); font-size: 13px; }
+  .tg__commands { color: var(--color-tg-muted); font-size: 11px; font-family: var(--font-mono); }
+  .tg__commands b { color: #5ab5ff; font-weight: 500; }
+</style>

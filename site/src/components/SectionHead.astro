@@ -1,0 +1,62 @@
+---
+interface Props {
+  label: string;
+}
+const { label } = Astro.props;
+---
+<header class="section-head">
+  <div>
+    <div class="section-label">{label}</div>
+    <h2 class="section-title">
+      <slot name="title" />
+    </h2>
+  </div>
+  <p class="section-lede">
+    <slot name="lede" />
+  </p>
+</header>
+
+<style>
+  .section-head {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 50px;
+    align-items: end;
+    margin-bottom: 36px;
+  }
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-label::before {
+    content: "";
+    display: inline-block;
+    width: 18px;
+    height: 1px;
+    background: currentColor;
+  }
+  .section-title {
+    font-weight: 400;
+    font-size: 44px;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-style: italic;
+    margin: 16px 0 0 0;
+  }
+  .section-lede {
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--color-sumi-soft);
+    margin: 0;
+  }
+  @media (max-width: 900px) {
+    .section-head { grid-template-columns: 1fr; gap: 24px; }
+  }
+</style>

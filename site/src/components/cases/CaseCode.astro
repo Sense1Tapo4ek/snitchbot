@@ -1,0 +1,74 @@
+---
+import { highlight } from "../../lib/shiki";
+
+interface Props {
+  file: string;
+  code: string;
+  hidden?: boolean;
+}
+const { file, code, hidden = false } = Astro.props;
+const html = await highlight(code);
+---
+<div class="code-panel" data-hidden={hidden ? "true" : "false"}>
+  <div class="code-head">
+    <div class="dots">
+      <span class="r"></span>
+      <span class="y"></span>
+      <span class="g"></span>
+    </div>
+    <div class="file">{file}</div>
+  </div>
+  <div class="code-body" set:html={html} />
+</div>
+
+<style>
+  .code-panel {
+    background: #1e1e1e;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow:
+      0 4px 16px rgba(30, 26, 21, 0.12),
+      0 20px 40px rgba(30, 26, 21, 0.08);
+    display: flex;
+    flex-direction: column;
+    height: 580px;
+  }
+  .code-panel[data-hidden="true"] { display: none; }
+  .code-head {
+    background: #252526;
+    padding: 9px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #1a1a1a;
+  }
+  .dots { display: flex; gap: 6px; }
+  .dots span { width: 10px; height: 10px; border-radius: 50%; }
+  .dots .r { background: #ff5f57; }
+  .dots .y { background: #febc2e; }
+  .dots .g { background: #28c840; }
+  .file {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #888;
+    margin-left: auto;
+  }
+  .code-body {
+    flex: 1;
+    padding: 18px 20px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.7;
+    overflow: auto;
+  }
+  .code-body :global(pre) {
+    background: transparent !important;
+    padding: 0;
+    margin: 0;
+    overflow-x: auto;
+  }
+  .code-body :global(code) {
+    font-family: var(--font-mono);
+    font-size: inherit;
+  }
+</style>

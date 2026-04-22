@@ -1,0 +1,50 @@
+---
+import "@fontsource/cormorant-garamond/400-italic.css";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/jetbrains-mono/400.css";
+import "@fontsource/jetbrains-mono/500.css";
+import "@fontsource/noto-serif-jp/japanese-400.css";
+import "../styles/global.css";
+import { withBase } from "../lib/base";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "snitchbot — telemetry for Python services, quietly delivered to Telegram",
+  description = "A simple Sentry alternative for small Python projects. Crashes, load, and anomalies — delivered to Telegram. Thin client, isolated async sidecar.",
+} = Astro.props;
+
+const ogImage = withBase("/og-image.png");
+const favicon = withBase("/favicon.svg");
+const appleIcon = withBase("/apple-touch-icon.png");
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+
+    <title>{title}</title>
+
+    <link rel="icon" type="image/svg+xml" href={favicon} />
+    <link rel="apple-touch-icon" href={appleIcon} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

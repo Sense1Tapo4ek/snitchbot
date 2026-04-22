@@ -1,0 +1,81 @@
+---
+---
+<div class="footprint">
+  <div class="cell">
+    <div class="kind">in your process</div>
+    <div class="num">&lt;10<span class="unit">MB</span></div>
+    <div class="desc">
+      The <b>client</b> — thin, synchronous-safe, fire-and-forget. One dependency (<b>msgpack</b>).
+      Sits inside your Python service, adds no blocking calls.
+    </div>
+  </div>
+  <div class="cell">
+    <div class="kind">one per service, isolated</div>
+    <div class="num">~43<span class="unit">MB</span></div>
+    <div class="desc">
+      An <b>async sidecar</b> spawned alongside your app. Handles Telegram, dedup, rate-limit,
+      anomaly detection — in its own process, so a bug in observability never crashes production.
+    </div>
+  </div>
+</div>
+
+<style>
+  .footprint {
+    border-top: 1px solid rgba(30, 26, 21, 0.15);
+    padding-top: 28px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    font-family: var(--font-mono);
+  }
+  .cell {
+    padding: 4px 24px 6px 24px;
+    border-left: 1px solid rgba(30, 26, 21, 0.15);
+  }
+  .cell:first-child { border-left: none; padding-left: 0; }
+  .kind {
+    font-size: 9px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .num {
+    font-family: var(--font-display);
+    font-size: 44px;
+    font-style: italic;
+    font-weight: 500;
+    color: var(--color-sumi);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .unit {
+    font-family: var(--font-mono);
+    font-style: normal;
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--color-accent);
+    margin-left: 6px;
+    letter-spacing: 0;
+  }
+  .desc {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--color-sumi-soft);
+    margin-top: 12px;
+    line-height: 1.55;
+    max-width: 30em;
+  }
+  .desc b { color: var(--color-sumi); font-weight: 600; }
+  @media (max-width: 720px) {
+    .footprint { grid-template-columns: 1fr; }
+    .cell + .cell {
+      border-left: none;
+      padding-left: 0;
+      margin-top: 24px;
+      border-top: 1px solid rgba(30, 26, 21, 0.15);
+      padding-top: 24px;
+    }
+  }
+</style>

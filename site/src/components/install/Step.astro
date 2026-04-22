@@ -1,0 +1,92 @@
+---
+interface Props {
+  time: string;
+  num: string;
+  title: string;
+}
+const { time, num, title } = Astro.props;
+---
+<article class="step">
+  <span class="watermark" aria-hidden="true">{num}</span>
+  <div class="step-time">
+    <span class="dot" aria-hidden="true"></span>
+    step <b>{time}</b>
+  </div>
+  <h3 class="step-title">{title}</h3>
+  <div class="step-body"><slot name="body" /></div>
+  <div class="step-visual"><slot name="visual" /></div>
+</article>
+
+<style>
+  .step {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .watermark {
+    position: absolute;
+    right: 6px;
+    top: 38px;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 68px;
+    font-weight: 300;
+    line-height: 0.85;
+    color: var(--color-accent);
+    opacity: 0.18;
+    letter-spacing: -0.03em;
+    user-select: none;
+    pointer-events: none;
+  }
+  .step-time {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--color-ink-muted);
+    background: var(--color-paper);
+    padding: 6px 12px;
+    border: 1.4px solid var(--color-accent);
+    border-radius: 100px;
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
+  }
+  .step-time .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-accent);
+  }
+  .step-time b {
+    color: var(--color-accent);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+  }
+  .step-title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 24px;
+    color: var(--color-sumi);
+    line-height: 1.2;
+    margin: 0;
+  }
+  .step-body {
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    color: var(--color-sumi-soft);
+    line-height: 1.6;
+  }
+  .step-body :global(code) {
+    font-family: var(--font-mono);
+    background: rgba(181, 75, 60, 0.08);
+    color: var(--color-accent-soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11.5px;
+  }
+  .step-visual { margin-top: 4px; }
+</style>

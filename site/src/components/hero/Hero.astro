@@ -1,0 +1,182 @@
+---
+import Paper from "../Paper.astro";
+import BrushDivider from "../BrushDivider.astro";
+import KanjiWatermark from "../KanjiWatermark.astro";
+import FootprintStrip from "./FootprintStrip.astro";
+---
+<Paper padding="pt-[60px] pb-0 px-14">
+  <div class="hero">
+    <div class="hero__left">
+      <div class="brand-row">snitchbot · 通知 · telemetry for python</div>
+      <h1 class="display">
+        <span class="strike">Sentry.</span>
+        <span class="accent">snitchbot.</span><br />
+        <span class="muted">Crashes, load, anomalies</span> —<br />
+        delivered to Telegram.
+      </h1>
+      <BrushDivider width={62} />
+      <p class="lede">
+        Drop-in telemetry for any Python service.
+        <span class="hl">Exceptions</span>,
+        <span class="hl">slow calls</span>,
+        <span class="hl">watchdog stalls</span>,
+        <span class="hl">RSS / CPU / FD anomalies</span>,
+        and your own <span class="hl">notify()</span> calls — streamed to a Telegram chat you already have open.
+        No DSN, no dashboards to host, no blocking calls in your hot path.
+      </p>
+      <div class="cta-row">
+        <span class="cta-install">$ uv add snitchbot</span>
+        <a class="cta-link" href="#install">30-second setup -></a>
+      </div>
+    </div>
+    <aside class="hero__right">
+      <div>
+        <KanjiWatermark char="見" size={148} />
+        <div class="kanji-label"><em>見</em> · mi · to watch</div>
+      </div>
+      <dl class="meta">
+        <div><dt>bot tokens</dt><dd>1</dd></div>
+        <div><dt>chat ids</dt><dd>1</dd></div>
+        <div><dt>dashboards to host</dt><dd>0</dd></div>
+        <div><dt>blocking calls</dt><dd>0</dd></div>
+      </dl>
+    </aside>
+  </div>
+
+  <div class="footprint-wrap">
+    <FootprintStrip />
+  </div>
+</Paper>
+
+<style>
+  .hero {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 42px;
+    align-items: end;
+    min-height: 420px;
+  }
+  .brand-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
+  }
+  .brand-row::before {
+    content: "";
+    display: inline-block;
+    width: 18px;
+    height: 1px;
+    background: currentColor;
+  }
+  .display {
+    font-weight: 400;
+    font-size: 58px;
+    line-height: 1.03;
+    letter-spacing: -0.02em;
+    margin: 22px 0 0;
+    font-style: italic;
+    font-family: var(--font-display);
+  }
+  .display .muted { color: var(--color-ink-faded); font-style: normal; font-weight: 400; }
+  .display .accent { color: var(--color-accent); font-style: normal; font-weight: 500; }
+  .display .strike {
+    text-decoration: line-through;
+    text-decoration-thickness: 3px;
+    text-decoration-color: var(--color-accent);
+    font-style: normal;
+    color: var(--color-ink-faded);
+    opacity: 0.65;
+  }
+  .lede {
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.62;
+    color: var(--color-sumi-soft);
+    max-width: 34em;
+    margin: 26px 0 0;
+  }
+  .lede .hl {
+    background: rgba(181, 75, 60, 0.12);
+    color: var(--color-accent-soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+  .cta-row {
+    margin-top: 28px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+  .cta-install {
+    background: var(--color-sumi);
+    color: var(--color-paper);
+    padding: 11px 16px;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+  }
+  .cta-link {
+    color: var(--color-sumi);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(30, 26, 21, 0.3);
+    padding-bottom: 2px;
+  }
+  .cta-link:hover { border-bottom-color: var(--color-accent); }
+
+  .hero__right {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding-left: 34px;
+    border-left: 1px solid rgba(30, 26, 21, 0.12);
+    padding-bottom: 40px;
+  }
+  .kanji-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
+    margin-top: 18px;
+  }
+  .kanji-label em { font-style: normal; color: var(--color-accent); }
+
+  .meta {
+    margin: 30px 0 0;
+    padding: 0;
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--color-sumi-soft);
+  }
+  .meta > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px dashed rgba(30, 26, 21, 0.15);
+    padding: 4px 0;
+  }
+  .meta dt { margin: 0; }
+  .meta dd {
+    margin: 0;
+    color: var(--color-sumi);
+    font-weight: 600;
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+
+  .footprint-wrap { padding: 0 0 40px 0; }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero__right { border-left: none; padding-left: 0; }
+    .display { font-size: 44px; }
+  }
+</style>

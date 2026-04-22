@@ -1,0 +1,60 @@
+---
+interface Props {
+  filename: string;
+  sizeLabel: string;
+  caption: string;
+  ext?: string;
+  time?: string;
+}
+const { filename, sizeLabel, caption, ext = "CSV", time } = Astro.props;
+---
+<div class="tg-msg tg-msg--attach">
+  <span class="att">
+    <span class="att__icon">{ext}</span>
+    <span class="att__meta">
+      <b>{filename}</b>
+      <span class="att__size">{sizeLabel} · Document</span>
+    </span>
+  </span>
+  <div class="att__caption">{caption}</div>
+  {time && <span class="tg-msg__time">{time}</span>}
+</div>
+
+<style>
+  .tg-msg--attach {
+    background: var(--color-tg-bubble);
+    max-width: 92%;
+    align-self: flex-start;
+    border-radius: 10px 10px 10px 4px;
+    padding: 8px 11px 6px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--color-tg-text);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  }
+  .att { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .att__icon {
+    width: 28px;
+    height: 32px;
+    background: #0f1a24;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #5ab5ff;
+    font-size: 9px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.05em;
+  }
+  .att__meta { line-height: 1.3; }
+  .att__meta b { color: #fff; font-weight: 600; }
+  .att__size { color: #8fa3b4; font-size: 10px; display: block; }
+  .att__caption { margin-top: 6px; color: #a8b3bd; font-size: 11.5px; }
+  .tg-msg__time {
+    font-size: 10px;
+    color: var(--color-tg-muted);
+    float: right;
+    margin-left: 6px;
+    margin-top: 3px;
+  }
+</style>

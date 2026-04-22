@@ -1,0 +1,21 @@
+---
+interface Props {
+  char: string;
+  size?: number;
+  opacity?: number;
+}
+const { char, size = 148, opacity = 0.14 } = Astro.props;
+---
+<span class="kanji" style={`font-size: ${size}px; opacity: ${opacity}`} aria-hidden="true">{char}</span>
+
+<style>
+  .kanji {
+    font-family: var(--font-jp);
+    color: var(--color-accent);
+    font-weight: 300;
+    line-height: 0.85;
+    letter-spacing: -0.05em;
+    user-select: none;
+    display: inline-block;
+  }
+</style>

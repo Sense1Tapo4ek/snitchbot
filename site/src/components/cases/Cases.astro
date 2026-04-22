@@ -1,0 +1,168 @@
+---
+import Paper from "../Paper.astro";
+import SectionHead from "../SectionHead.astro";
+import CaseCode from "./CaseCode.astro";
+import CaseTelegram from "./CaseTelegram.astro";
+import { CASES } from "./cases-data";
+
+const firstKey = "watchdog";
+---
+<Paper>
+  <SectionHead label="02 · cases">
+    <Fragment slot="title">
+      Every signal,<br />
+      <span style="color: var(--color-accent); font-style: normal; font-weight: 500;">
+        with the code that triggers it.
+      </span>
+    </Fragment>
+    <Fragment slot="lede">
+      Snippets pulled from <code>examples/</code> — real working scripts, not pseudo-code. Pick a case to see the setup and the verbatim alerts it produces.
+    </Fragment>
+  </SectionHead>
+
+  <div data-tabs-root>
+    <div role="tablist" aria-label="snitchbot cases" data-tabs class="tabs">
+      {CASES.map((c) => (
+        <button
+          role="tab"
+          aria-selected={c.key === firstKey ? "true" : "false"}
+          aria-controls={`panel-${c.key}`}
+          data-case={c.key}
+          tabindex={c.key === firstKey ? 0 : -1}
+          class:list={["tab", { active: c.key === firstKey }]}
+          type="button"
+        >
+          <span class="dot" aria-hidden="true"></span>
+          <span>{c.label}</span>
+          <span class="kind">{c.kind}</span>
+        </button>
+      ))}
+    </div>
+
+    <div class="split">
+      <div data-reveal>
+        {CASES.map((c) => (
+          <div id={`panel-${c.key}`} data-case-panel data-case={c.key} data-hidden={c.key === firstKey ? "false" : "true"}>
+            <CaseCode file={c.file} code={c.code} />
+          </div>
+        ))}
+      </div>
+      <div data-reveal data-reveal-delay="60">
+        {CASES.map((c) => (
+          <div data-case-panel data-case={c.key} data-hidden={c.key === firstKey ? "false" : "true"}>
+            <CaseTelegram service={c.service} tgHtml={c.tgHtml} />
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="case-desc" data-case-desc>
+      {CASES.map((c) => (
+        <div data-desc={c.key} data-hidden={c.key === firstKey ? "false" : "true"}>
+          <div class="what">{c.what}</div>
+          <div class="trigger" set:html={c.triggerHtml} />
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <script>
+    import "./tabs";
+    import "./reveal";
+  </script>
+</Paper>
+
+<style>
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(30, 26, 21, 0.18);
+  }
+  .tab {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 13px 14px 11px;
+    cursor: pointer;
+    color: var(--color-ink-muted);
+    border: none;
+    background: transparent;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--color-sumi); }
+  .tab.active { color: var(--color-sumi); border-bottom-color: var(--color-accent); }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .tab.active .dot { opacity: 1; }
+  .kind {
+    font-size: 9px;
+    color: var(--color-ink-faded);
+    text-transform: lowercase;
+    letter-spacing: 0;
+  }
+
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 900px) {
+    .split { grid-template-columns: 1fr; }
+  }
+
+  .case-desc {
+    margin-top: 18px;
+    padding: 16px 0 0;
+    border-top: 1px solid rgba(30, 26, 21, 0.15);
+  }
+  .case-desc [data-desc] {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 24px;
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    color: var(--color-sumi-soft);
+    line-height: 1.6;
+  }
+  /* Hidden rules must come AFTER display rules to win the same-specificity tie. */
+  .split [data-case-panel][data-hidden="true"],
+  .case-desc [data-desc][data-hidden="true"] {
+    display: none;
+  }
+  .case-desc .what {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 20px;
+    color: var(--color-sumi);
+    line-height: 1.25;
+  }
+  .case-desc .trigger :global(code) {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    background: rgba(181, 75, 60, 0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--color-accent-soft);
+  }
+  .case-desc .trigger :global(b) {
+    color: var(--color-sumi);
+    font-weight: 600;
+  }
+  @media (max-width: 700px) {
+    .case-desc [data-desc] { grid-template-columns: 1fr; }
+  }
+</style>

@@ -1,0 +1,165 @@
+---
+import { withBase } from "../../lib/base";
+---
+<footer class="footer">
+  <div class="inner">
+    <div>
+      <div class="brand">
+        <span class="kanji">見</span>
+        <span>snitchbot · 通知</span>
+      </div>
+      <div class="tag">
+        Telemetry for small Python services,<br />quietly delivered to Telegram.
+      </div>
+    </div>
+
+    <div class="col">
+      <h4>project</h4>
+      <ul>
+        <li><a href="https://github.com/e-mesherykou/telegram_analitics">GitHub</a></li>
+        <li><a href={withBase("/docs")}>Docs</a></li>
+        <li><a href="https://github.com/e-mesherykou/telegram_analitics/releases">Changelog</a></li>
+        <li><a href="https://github.com/e-mesherykou/telegram_analitics/tree/master/examples">Examples</a></li>
+      </ul>
+    </div>
+
+    <div class="col">
+      <h4>install</h4>
+      <ul>
+        <li><span class="mono">uv add snitchbot</span></li>
+        <li><span class="mono">pip install snitchbot</span></li>
+        <li><a href="https://pypi.org/project/snitchbot/">PyPI</a></li>
+        <li><a href="https://github.com/e-mesherykou/telegram_analitics/releases">Release notes</a></li>
+      </ul>
+    </div>
+
+    <div class="col">
+      <h4>community</h4>
+      <ul>
+        <li><a href="https://github.com/e-mesherykou/telegram_analitics/issues">Issues</a></li>
+        <li><a href="https://github.com/e-mesherykou/telegram_analitics/discussions">Discussions</a></li>
+        <li><a href="https://github.com/e-mesherykou/telegram_analitics/blob/master/CONTRIBUTING.md">Contributing</a></li>
+        <li><a href="https://github.com/e-mesherykou/telegram_analitics/blob/master/LICENSE">License · MIT</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div>© 2026 · snitchbot</div>
+    <div><em>built quietly, on washi and vermillion.</em></div>
+    <div>v0.1.0</div>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    position: relative;
+    padding: 32px 44px 36px;
+    background:
+      radial-gradient(ellipse at 50% 50%, rgba(255, 248, 230, 0.5), transparent 70%),
+      var(--color-sumi);
+    color: #eae1cf;
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: var(--font-body);
+  }
+  .footer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='nd'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 0.95  0 0 0 0 0.85  0 0 0 0.04 0'/></filter><rect width='100%25' height='100%25' filter='url(%23nd)'/></svg>");
+    opacity: 0.6;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+  .inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 1fr;
+    gap: 40px;
+    align-items: start;
+  }
+  .brand {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .brand .kanji {
+    font-family: var(--font-jp);
+    font-size: 30px;
+    color: var(--color-accent);
+    font-weight: 300;
+    line-height: 1;
+  }
+  .tag {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--color-ink-faded);
+    margin-top: 14px;
+    line-height: 1.4;
+  }
+  .col h4 {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-ink-faded);
+    margin: 0 0 14px;
+  }
+  .col ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 13px;
+    line-height: 2;
+  }
+  .col a {
+    color: #eae1cf;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s;
+  }
+  .col a:hover { border-bottom-color: var(--color-accent); }
+  .col .mono {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-ink-faded);
+  }
+
+  .bottom {
+    position: relative;
+    z-index: 1;
+    margin-top: 36px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(234, 225, 207, 0.12);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--color-ink-muted);
+  }
+  .bottom em {
+    font-style: normal;
+    color: var(--color-ink-faded);
+  }
+
+  @media (max-width: 900px) {
+    .inner { grid-template-columns: 1fr 1fr; gap: 28px; }
+    .bottom {
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
+    }
+  }
+  @media (max-width: 540px) {
+    .inner { grid-template-columns: 1fr; }
+  }
+</style>

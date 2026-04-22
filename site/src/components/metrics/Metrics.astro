@@ -1,0 +1,149 @@
+---
+import Paper from "../Paper.astro";
+import SectionHead from "../SectionHead.astro";
+import TgWindow from "../telegram/TgWindow.astro";
+import TgMessage from "../telegram/TgMessage.astro";
+import TgAttachment from "../telegram/TgAttachment.astro";
+import ChartOutput from "./ChartOutput.astro";
+import CsvLedger from "./CsvLedger.astro";
+---
+<Paper>
+  <SectionHead label="03 · metrics">
+    <Fragment slot="title">
+      Charts where you look.<br />
+      <span style="color: var(--color-accent); font-style: normal; font-weight: 500;">
+        Data for when you dig.
+      </span>
+    </Fragment>
+    <Fragment slot="lede">
+      The sidecar samples <code>psutil</code> and keeps a rolling buffer. Ask for a chart in any window from <code>1m</code> to <code>1d</code>, pin a live dashboard that updates itself, or pull the full history as a CSV and drop it into your notebook.
+    </Fragment>
+  </SectionHead>
+
+  <div class="split">
+    <TgWindow service="orders-api" minHeight="530px">
+      <TgMessage sent time="12:17"><code>/chart all 5m</code></TgMessage>
+      <TgMessage time="12:17"><ChartOutput /></TgMessage>
+      <TgMessage sent time="12:18"><code>/export</code></TgMessage>
+      <TgAttachment
+        filename="orders-api_vitals.csv"
+        sizeLabel="12.4 KB"
+        caption="Vitals export: 128 samples"
+        time="12:18"
+      />
+    </TgWindow>
+
+    <CsvLedger />
+  </div>
+
+  <div class="commands">
+    <div class="cmd">
+      <div class="head">
+        <span class="name">/chart</span>
+        <span class="kind">on demand</span>
+      </div>
+      <div class="what">ASCII charts for any metric, any window.</div>
+      <div class="body">
+        Metrics: <code>cpu</code> · <code>mem</code> · <code>fds</code> · <code>threads</code> · <code>all</code>.<br />
+        Windows: <code>1m</code> · <code>5m</code> · <code>15m</code> · <code>1h</code> · <code>6h</code> · <code>1d</code>.<br />
+        Usage: <code>/chart all 1h</code>
+      </div>
+    </div>
+    <div class="cmd">
+      <div class="head">
+        <span class="name">live dashboard</span>
+        <span class="kind">pinned · auto-updating</span>
+      </div>
+      <div class="what">A single pinned message, always current.</div>
+      <div class="body">
+        Set <code>live_dashboard=True</code> at <code>init()</code>. The sidecar pins one message to the chat and rewrites it every <code>sample_interval_sec</code> with fresh vitals, so it never clutters the history.
+      </div>
+    </div>
+    <div class="cmd">
+      <div class="head">
+        <span class="name">/export</span>
+        <span class="kind">download</span>
+      </div>
+      <div class="what">Full vitals history, as a CSV.</div>
+      <div class="body">
+        The sidecar streams the entire rolling buffer as <code>&lt;service&gt;_vitals.csv</code> via Telegram's <code>sendDocument</code>. Columns: <code>sampled_at</code>, <code>cpu_pct</code>, <code>rss_mb</code>, <code>fds</code>, <code>threads</code>.
+      </div>
+    </div>
+  </div>
+</Paper>
+
+<style>
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 22px;
+    align-items: stretch;
+  }
+  @media (max-width: 900px) {
+    .split { grid-template-columns: 1fr; }
+  }
+
+  .commands {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border-top: 1px solid rgba(30, 26, 21, 0.15);
+    padding-top: 24px;
+  }
+  .cmd {
+    padding: 0 22px;
+    border-left: 1px solid rgba(30, 26, 21, 0.15);
+  }
+  .cmd:first-child {
+    border-left: none;
+    padding-left: 0;
+  }
+  .head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .name {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--color-accent);
+    letter-spacing: -0.01em;
+  }
+  .kind {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-ink-faded);
+  }
+  .what {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 18px;
+    color: var(--color-sumi);
+    line-height: 1.3;
+    margin-bottom: 10px;
+  }
+  .body {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--color-sumi-soft);
+    line-height: 1.6;
+  }
+  .body code {
+    font-family: var(--font-mono);
+    background: rgba(181, 75, 60, 0.08);
+    color: var(--color-accent-soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  @media (max-width: 900px) {
+    .commands { grid-template-columns: 1fr; gap: 24px; }
+    .cmd { border-left: none; padding-left: 0; }
+  }
+</style>

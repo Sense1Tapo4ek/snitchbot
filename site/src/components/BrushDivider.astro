@@ -1,0 +1,24 @@
+---
+interface Props {
+  width?: number;
+  class?: string;
+}
+const { width = 62, class: className = "" } = Astro.props;
+---
+<span
+  class:list={["brush", className]}
+  style={`width: ${width}px`}
+  aria-hidden="true"
+></span>
+
+<style>
+  .brush {
+    display: block;
+    height: 6px;
+    background: var(--color-accent);
+    border-radius: 50% 50% 0 50%;
+    transform: rotate(-2deg) scaleX(1.6);
+    transform-origin: left center;
+    opacity: 0.9;
+  }
+</style>

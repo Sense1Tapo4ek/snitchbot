@@ -1,0 +1,46 @@
+---
+interface Props {
+  class?: string;
+  padding?: string;
+}
+const { class: className = "", padding = "py-14 px-11" } = Astro.props;
+---
+<section class:list={["paper", padding, className]}>
+  <div class="paper__content">
+    <slot />
+  </div>
+</section>
+
+<style>
+  .paper {
+    position: relative;
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(255, 248, 230, 0.6), transparent 50%),
+      radial-gradient(ellipse at 80% 90%, rgba(230, 215, 190, 0.4), transparent 60%),
+      var(--color-paper);
+    color: var(--color-sumi);
+    font-family: var(--font-display);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .paper::before,
+  .paper::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+  }
+  .paper::before {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.08  0 0 0 0 0.06  0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: 0.55;
+  }
+  .paper::after {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='600'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.012' numOctaves='2'/><feColorMatrix values='0 0 0 0 0.85  0 0 0 0 0.78  0 0 0 0 0.62  0 0 0 0.35 0'/></filter><rect width='100%25' height='100%25' filter='url(%23f)'/></svg>");
+    opacity: 0.7;
+  }
+  .paper__content {
+    position: relative;
+    z-index: 1;
+  }
+</style>

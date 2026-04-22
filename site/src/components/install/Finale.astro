@@ -1,0 +1,104 @@
+---
+---
+<div class="finale">
+  <div class="mark">
+    <div class="time">:30</div>
+    <div class="label">and then —</div>
+  </div>
+  <div>
+    <div class="alert">
+      <span class="arrow">▶</span> <b>orders-api started</b>
+      <span class="sep">━━━━━━━━━━━━━━━━━━</span>
+      <div class="meta">pid        <b>101</b>
+time       2026-04-19 17:03:42 UTC</div>
+      <span class="time-small">17:03</span>
+    </div>
+    <div class="caption">Your service just introduced itself. Everything else is already watching.</div>
+  </div>
+</div>
+
+<style>
+  .finale {
+    margin-top: 48px;
+    padding-top: 36px;
+    border-top: 1px dashed rgba(30, 26, 21, 0.2);
+    display: grid;
+    grid-template-columns: 1fr 1.6fr;
+    gap: 36px;
+    align-items: center;
+  }
+  .mark {
+    text-align: right;
+    padding-right: 20px;
+    border-right: 2px solid var(--color-accent);
+  }
+  .time {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 76px;
+    font-weight: 400;
+    color: var(--color-accent);
+    line-height: 0.9;
+    letter-spacing: -0.03em;
+  }
+  .label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-ink-faded);
+    margin-top: 8px;
+  }
+  .alert {
+    background: var(--color-tg-bg);
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: var(--color-tg-text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    box-shadow:
+      0 4px 16px rgba(30, 26, 21, 0.1),
+      0 18px 36px rgba(30, 26, 21, 0.08);
+  }
+  .arrow { color: #5ab5ff; font-weight: 600; }
+  .alert b { color: #fff; }
+  .sep {
+    color: #4a5a6a;
+    font-family: var(--font-mono);
+    letter-spacing: -0.5px;
+    font-size: 11px;
+    display: block;
+    margin-top: 2px;
+  }
+  .meta {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #a8b3bd;
+    white-space: pre;
+    margin-top: 4px;
+  }
+  .meta b { color: #fff; }
+  .time-small {
+    font-size: 10px;
+    color: var(--color-tg-muted);
+    float: right;
+  }
+  .caption {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--color-ink-muted);
+    margin-top: 14px;
+  }
+  @media (max-width: 720px) {
+    .finale { grid-template-columns: 1fr; }
+    .mark {
+      text-align: left;
+      border-right: none;
+      border-left: 2px solid var(--color-accent);
+      padding-right: 0;
+      padding-left: 20px;
+    }
+  }
+</style>
