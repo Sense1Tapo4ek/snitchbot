@@ -1,0 +1,73 @@
+---
+title: setup_structlog()
+symbol: setup_structlog
+section: api
+order: 6
+kind: function
+since: "0.1.0"
+watermark: 見
+summary: "Return a structlog processor that forwards WARNING+ events to Telegram."
+---
+
+Returns a processor you drop into your `structlog.configure(processors=[...])` list. Every `WARNING+` event is routed through snitchbot's pipeline, identical to [`setup_logging()`](./setup-logging) but via structlog's event-dict chain. The processor itself mutates nothing — it emits the event as a side effect and returns the dict unchanged so downstream processors (renderers, JSON formatters) keep working.
+
+For caller info (file, line, function) in alerts, place `structlog.processors.CallsiteParameterAdder` **before** this processor — without it, alerts will not show caller info.
+
+## Signature
+
+```python
+def setup_structlog()
+```
+
+No parameters, no return-type annotation in source — returns a processor callable.
+
+## Example
+
+```python
+import structlog
+from structlog.processors import CallsiteParameter, CallsiteParameterAdder
+
+import snitchbot
+
+snitchbot.init("orders-api")
+
+structlog.configure(processors=[
+    structlog.stdlib.add_log_level,
+    CallsiteParameterAdder([
+        CallsiteParameter.PATHNAME,
+        CallsiteParameter.LINENO,
+        CallsiteParameter.FUNC_NAME,
+    ]),
+    snitchbot.setup_structlog(),
+    structlog.dev.ConsoleRenderer(),
+])
+
+log = structlog.get_logger()
+log.warning("order.rejected", order_id=42, reason="insufficient_funds")
+```
+
+> Telegram shows:
+
+```text
+🟠 log.warning · orders-api · 7e91a3
+order.rejected
+Details
+  time      14:02:11 UTC
+  pid       2104
+  caller    orders.py:42 in reject()
+Extras
+  event        order.rejected
+  order_id     42
+  reason       insufficient_funds
+  logger       orders
+  level        WARNING
+```
+
+## Notes
+
+The processor position matters: put it after any enrichment you want reflected in the alert (level, callsite, bound context) and before the final renderer.
+
+## Related
+
+- [`setup_logging()`](./setup-logging) — stdlib counterpart.
+- [`request_context()`](./request-context) — layered on top; structlog context is independent.

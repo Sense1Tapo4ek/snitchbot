@@ -1,0 +1,81 @@
+---
+title: setup_logging()
+symbol: setup_logging
+section: api
+order: 5
+kind: function
+since: "0.1.0"
+watermark: 見
+summary: "Attach the snitchbot handler to a stdlib logger. One-liner integration."
+---
+
+Adds a `SnitchbotLoggingHandler` to the named logger. Every `WARNING+` record is forwarded as a `custom` event through the same pipeline as [`notify()`](./notify) — identical records collapse into `× N` sidecar-side. If a [`request_context()`](./request-context) is active, its `trace_id` and `extras` ride along on the log record's event. The handler's minimum level is clamped to `WARNING` — lower thresholds would flood the channel.
+
+Call **after** `init()`; with no arguments it attaches to the root logger.
+
+## Signature
+
+```python
+def setup_logging(*, level: int | None = None, logger_name: str = "") -> None
+```
+
+## Parameters
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `level` | `int \| None` | Minimum level forwarded to Telegram. Clamped to `WARNING`; `None` keeps the default. | `None` |
+| `logger_name` | `str` | Logger to attach to. `""` means the root logger. | `""` |
+
+## Example
+
+```python
+import logging
+import snitchbot
+
+snitchbot.init("orders-api")
+snitchbot.setup_logging()
+
+log = logging.getLogger(__name__)
+
+log.warning("payment webhook retried %d times", 3)
+log.error("cache miss storm", extra={"region": "eu-west-1"})
+```
+
+> Telegram shows:
+
+```text
+🟠 log.warning · orders-api · 5b2d18
+payment webhook retried 3 times
+Details
+  time      14:02:11 UTC
+  pid       2104
+  caller    webhook.py:42 in retry_charge()
+Extras
+  attempt      3
+  logger       orders.webhook
+  level        WARNING
+```
+
+and:
+
+```text
+🔴 log.error · orders-api · 9c4f11
+cache miss storm
+Details
+  time      14:05:22 UTC
+  pid       2104
+  caller    cache.py:18 in get()
+Extras
+  region       eu-west-1
+  logger       orders.cache
+  level        ERROR
+```
+
+## Notes
+
+Only `WARNING+` makes it through — lower levels are dropped at the handler boundary even if the logger itself is set to `DEBUG`. Duplicate identical log lines within the 5 min dedup window are folded in Telegram instead of spamming.
+
+## Related
+
+- [`setup_structlog()`](./setup-structlog) — equivalent processor for structlog pipelines.
+- [`notify()`](./notify) — the underlying transport.

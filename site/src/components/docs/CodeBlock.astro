@@ -1,0 +1,67 @@
+---
+import { highlight, type SupportedLang } from "../../lib/shiki";
+
+interface Props {
+  code: string;
+  lang?: SupportedLang;
+  file?: string;
+}
+const { code, lang = "python", file } = Astro.props;
+const html = await highlight(code, lang);
+---
+<figure class="cb">
+  <header class="cb__head">
+    <span class="cb__dots" aria-hidden="true">
+      <span class="r"></span><span class="y"></span><span class="g"></span>
+    </span>
+    {file && <span class="cb__file">{file}</span>}
+  </header>
+  <div class="cb__body" set:html={html} />
+</figure>
+
+<style>
+  .cb {
+    margin: 1.5em 0;
+    background: #1e1e1e;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow:
+      0 4px 16px rgba(30, 26, 21, 0.10),
+      0 18px 32px rgba(30, 26, 21, 0.06);
+  }
+  .cb__head {
+    background: #252526;
+    padding: 9px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #1a1a1a;
+  }
+  .cb__dots { display: flex; gap: 6px; }
+  .cb__dots span { width: 10px; height: 10px; border-radius: 50%; }
+  .cb__dots .r { background: #ff5f57; }
+  .cb__dots .y { background: #febc2e; }
+  .cb__dots .g { background: #28c840; }
+  .cb__file {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #888;
+    margin-left: auto;
+  }
+  .cb__body {
+    padding: 16px 18px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    overflow-x: auto;
+  }
+  .cb__body :global(pre) {
+    background: transparent !important;
+    padding: 0;
+    margin: 0;
+  }
+  .cb__body :global(code) {
+    font-family: var(--font-mono);
+    font-size: inherit;
+  }
+</style>

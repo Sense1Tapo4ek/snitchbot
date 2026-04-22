@@ -1,0 +1,55 @@
+---
+---
+<section class="ts">
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <div class="ts__list"><slot /></div>
+</section>
+
+<style>
+  .ts { margin: 2rem 0 2.4rem; }
+  .ts h2 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 26px;
+    color: var(--color-sumi);
+    margin: 0 0 1rem;
+  }
+  .ts__list :global(details) {
+    border-top: 1px solid rgba(138, 122, 95, 0.25);
+    padding: 0.7rem 0;
+  }
+  .ts__list :global(details:last-child) {
+    border-bottom: 1px solid rgba(138, 122, 95, 0.25);
+  }
+  .ts__list :global(summary) {
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--color-sumi);
+    list-style: none;
+    padding-left: 1.2rem;
+    position: relative;
+  }
+  .ts__list :global(summary::-webkit-details-marker) { display: none; }
+  .ts__list :global(summary::before) {
+    content: "+";
+    position: absolute;
+    left: 0;
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+  }
+  .ts__list :global(details[open] summary::before) { content: "−"; }
+  .ts__list :global(details[open] summary) { margin-bottom: 0.5rem; }
+  .ts__list :global(details p) {
+    margin: 0.4rem 0 0.2rem 1.2rem;
+    color: var(--color-sumi-soft);
+    line-height: 1.65;
+  }
+  .ts__list :global(details code) {
+    font-family: var(--font-mono);
+    background: rgba(30, 26, 21, 0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12.5px;
+  }
+</style>

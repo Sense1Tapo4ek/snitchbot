@@ -1,0 +1,41 @@
+---
+import PageKicker from "./PageKicker.astro";
+import ChipRow from "./ChipRow.astro";
+
+interface Props {
+  kicker: string;
+  title: string;
+  lede: string;
+  chips?: string[];
+}
+const { kicker, title, lede, chips = [] } = Astro.props;
+---
+<header class="ph">
+  <PageKicker text={kicker} />
+  <h1 class="ph__title" set:html={title} />
+  <p class="ph__lede">{lede}</p>
+  {chips.length > 0 && <ChipRow chips={chips} />}
+</header>
+
+<style>
+  .ph { margin-bottom: 1.8rem; }
+  .ph__title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(32px, 4vw, 44px);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    color: var(--color-sumi);
+    margin: 0 0 0.6rem;
+  }
+  .ph__title :global(.accent) { color: var(--color-accent); }
+  .ph__lede {
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.65;
+    color: var(--color-sumi-soft);
+    margin: 0 0 0.8rem;
+    max-width: var(--docs-reading-max);
+  }
+</style>

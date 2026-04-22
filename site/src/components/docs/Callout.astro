@@ -1,0 +1,46 @@
+---
+interface Props {
+  tone?: "default" | "info" | "warn";
+  tag?: string;
+}
+const { tone = "default", tag } = Astro.props;
+---
+<aside class={`co co--${tone}`}>
+  {tag && <span class="co__tag">{tag}</span>}
+  <div class="co__body"><slot /></div>
+</aside>
+
+<style>
+  .co {
+    margin: 1.2rem 0;
+    padding: 0.9rem 1.1rem;
+    border-left: 3px solid var(--color-ink-faded);
+    background: rgba(239, 231, 212, 0.5);
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--color-sumi-soft);
+    border-radius: 0 4px 4px 0;
+  }
+  .co--info { border-left-color: var(--color-accent); background: rgba(181, 75, 60, 0.06); }
+  .co--warn { border-left-color: #c28b3d; background: rgba(194, 139, 61, 0.08); }
+  .co__tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink-faded);
+    margin-right: 0.6em;
+  }
+  .co--info .co__tag { color: var(--color-accent); }
+  .co--warn .co__tag { color: #a86f24; }
+  .co__body { display: inline; }
+  .co__body :global(p) { display: inline; margin: 0; }
+  .co__body :global(code) {
+    font-family: var(--font-mono);
+    background: rgba(30, 26, 21, 0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12.5px;
+  }
+</style>

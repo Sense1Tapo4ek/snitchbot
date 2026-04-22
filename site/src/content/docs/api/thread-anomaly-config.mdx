@@ -1,0 +1,75 @@
+---
+title: ThreadAnomalyConfig
+symbol: ThreadAnomalyConfig
+section: api
+order: 12
+kind: class
+since: "0.1.0"
+watermark: 見
+summary: "Thread-count anomaly detector — thread leaks and worker-pool collapse."
+---
+
+Frozen dataclass for the number of OS threads in the process. Useful for catching leaked threads (growing unboundedly) and collapsed worker pools (a thread-pool dying under exceptions).
+
+- **Ceiling** — `max_threads` is a hard thread-count cap. Severity `error`.
+- **Spike** — `spike_ratio` + `min_spike_delta` detect thread leaks. Severity `warning`.
+- **Drop** — `drop_ratio` + `min_drop_delta` catch pool collapse. Severity `warning`.
+
+Drop mode ships enabled by default — a pool halving is usually the signal.
+
+## Fields
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `duration` | `str \| int` | Short evaluation window. | `"1m"` |
+| `baseline_duration` | `str \| int` | Baseline window. | `"15m"` |
+| `max_threads` | `int \| None` | Absolute thread ceiling. `None` disables ceiling mode. | `100` |
+| `spike_ratio` | `float \| None` | Growth factor vs. baseline. | `1.5` |
+| `min_spike_delta` | `int \| None` | Thread delta floor for a spike. | `10` |
+| `drop_ratio` | `float \| None` | Decline factor in `(0, 1)`. | `0.5` |
+| `min_drop_delta` | `int \| None` | Thread delta floor for a drop. | `5` |
+
+Computed properties: `duration_sec`, `baseline_duration_sec`.
+
+## Example
+
+```python
+import snitchbot
+from snitchbot import AnomalyConfig, ThreadAnomalyConfig
+
+snitchbot.init(
+    "celery-worker",
+    anomaly=AnomalyConfig(
+        threads=ThreadAnomalyConfig(
+            max_threads=200,
+            spike_ratio=2.0,
+            min_spike_delta=20,
+            drop_ratio=0.5,
+            min_drop_delta=10,
+        ),
+    ),
+)
+```
+
+> Telegram shows:
+
+```text
+🟠 anomaly · celery-worker · 44c2fb
+Worker collapse: 48 -> 22 (-26)
+Details
+  time      11:28:11 UTC
+  pid       1550
+  type      threads_drop
+  window    1m
+  baseline  48
+  current   22
+```
+
+## Notes
+
+`InvalidAnomalyConfigError` is raised on `max_threads <= 0`, a bad `spike_ratio`, or a `baseline_duration` shorter than `duration`.
+
+## Related
+
+- [`AnomalyConfig`](./anomaly-config), [`FdAnomalyConfig`](./fd-anomaly-config)
+- [Guide: configuring anomalies](../guide/configuring-anomalies)

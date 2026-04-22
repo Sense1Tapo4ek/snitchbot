@@ -1,0 +1,68 @@
+---
+title: watch_slow()
+symbol: watch_slow
+section: api
+order: 3
+kind: function
+since: "0.1.0"
+watermark: 見
+summary: "Decorator that emits a slow_call alert when a function exceeds threshold_ms."
+---
+
+Wraps a sync or async callable and times it with `time.monotonic()`. If the wall-clock duration meets or exceeds `threshold_ms`, a `slow_call` event is sent; otherwise the fast path returns with zero overhead beyond the timer. The event is always emitted from a `finally` block — a raising function still reports. `functools.wraps` preserves the target's metadata, and `qualname` is captured at decoration time.
+
+`threshold_ms` is keyword-only: `@watch_slow(1000)` raises `ValueError`.
+
+## Signature
+
+```python
+def watch_slow(
+    *args: Any,
+    threshold_ms: int,
+    send_event: Callable[[dict], None] | None = None,
+) -> Callable
+```
+
+## Parameters
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `threshold_ms` | `int` | Positive integer. Calls taking at least this many milliseconds emit a `slow_call` event. | *required* |
+| `send_event` | `Callable[[dict], None] \| None` | Test seam for injecting the event sender. Production leaves this `None` and the decorator falls back to the module-level hook wired by `init()`. | `None` |
+
+## Example
+
+```python
+import snitchbot
+
+snitchbot.init("orders-api")
+
+@snitchbot.watch_slow(threshold_ms=500)
+def charge(user_id: int) -> None:
+    ...
+
+@snitchbot.watch_slow(threshold_ms=1000)
+async def fetch_invoice(order_id: str) -> Invoice:
+    ...
+```
+
+> Telegram shows:
+
+```text
+🟠 slow call · billing · c3d4e5
+billing.fetch_invoice took 1843 ms (threshold 1000 ms)
+Details
+  time      12:57:18 UTC
+  pid       1738
+  is_async  true
+  location  billing/invoices.py:14
+```
+
+## Notes
+
+Async detection uses `inspect.iscoroutinefunction(fn)`. The payload carries `is_async` so the renderer can label awaitables distinctly. If `request_context()` is active at call-time, its `trace_id` rides along on the event.
+
+## Related
+
+- [`request_context()`](./request-context) — correlate slow calls across a request.
+- [`notify()`](./notify) — the same channel for ad-hoc alerts.

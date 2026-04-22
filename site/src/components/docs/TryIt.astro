@@ -1,0 +1,47 @@
+---
+---
+<section class="ti">
+  <header class="ti__head">
+    <h2 id="try-it">Try it</h2>
+    <span class="ti__hint">paste in a terminal, watch the chat</span>
+  </header>
+  <div class="ti__grid">
+    <div class="ti__term"><slot name="terminal" /></div>
+    <div class="ti__tg"><slot name="tg" /></div>
+  </div>
+</section>
+
+<style>
+  .ti { margin: 2rem 0 2.4rem; }
+  .ti__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.8rem;
+  }
+  .ti__head h2 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 26px;
+    color: var(--color-sumi);
+    margin: 0;
+  }
+  .ti__hint {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--color-ink-faded);
+  }
+  .ti__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+    align-items: start;
+  }
+  .ti__term :global(.cb) { margin: 0; }
+  @media (max-width: 1100px) {
+    .ti__grid { grid-template-columns: 1fr; }
+  }
+</style>

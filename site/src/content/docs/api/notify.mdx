@@ -1,0 +1,76 @@
+---
+title: notify()
+symbol: notify
+section: api
+order: 2
+kind: function
+since: "0.1.0"
+watermark: 見
+summary: "Send a custom notification to Telegram. Never raises."
+---
+
+Ad-hoc alert channel for anything you want to see in the chat: deploy pings, business-rule violations, one-off diagnostics. `notify()` is swallowed-by-design — if `init()` has not run, or the sidecar is unreachable, the call is counted in client stats and returns `None`. Frame info (file, line, function) is captured automatically via `sys._getframe`; when `exc_info=True` is used inside an `except` block, the deepest traceback frame is attached instead. Dedup happens sidecar-side — identical text within 5 min renders as `× N`.
+
+## Signature
+
+```python
+def notify(
+    text: str,
+    *,
+    severity: str = "warning",
+    extras: dict | None = None,
+    exc_info: bool | BaseException | None = None,
+    source: str | None = None,
+    caller: dict | None = None,
+) -> None
+```
+
+## Parameters
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `text` | `str` | Message body. Rendered as the alert title. | *required* |
+| `severity` | `str` | One of `"info"`, `"warning"`, `"error"`, `"critical"`. Drives icon and routing. | `"warning"` |
+| `extras` | `dict \| None` | Flat key-value pairs appended to the alert's meta-block. Secrets are scrubbed. | `None` |
+| `exc_info` | `bool \| BaseException \| None` | `True` to attach `sys.exc_info()`, or pass an exception directly. Outside an `except` block the exception attachment is dropped, but the notification still goes through. | `None` |
+| `source` | `str \| None` | Override the source field (otherwise derived from caller frame). | `None` |
+| `caller` | `dict \| None` | Pre-computed `{"file", "line", "func"}` dict. Skips frame inspection. | `None` |
+
+## Example
+
+```python
+import snitchbot
+
+snitchbot.init("orders-api")
+
+try:
+    charge(user_id=42)
+except StripeError:
+    snitchbot.notify(
+        "charge failed",
+        severity="error",
+        extras={"user_id": 42},
+        exc_info=True,
+    )
+```
+
+> Telegram shows:
+
+```text
+🔴 notify · orders-api · 2eec9c
+charge failed
+Details
+  time      12:52:35 UTC
+  pid       1732
+  caller    billing.py:14 in process_charge()
+Extras
+  user_id      42
+```
+
+with the `StripeError` traceback appended in an `Exception` block below.
+
+## Related
+
+- [`request_context()`](./request-context) — attach `trace_id` + extras to every `notify` inside the block.
+- [`setup_logging()`](./setup-logging) — forward stdlib WARNING+ records through `notify` automatically.
+- [Cookbook: deploy-time notify](../cookbook/deploy-time-notify) — one-shot notify from CI.

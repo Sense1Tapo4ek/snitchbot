@@ -1,0 +1,35 @@
+---
+import { withBase } from "../../lib/base";
+
+interface Props {
+  section: "api" | "guide" | "cookbook";
+  title: string;
+}
+const { section, title } = Astro.props;
+const sectionLabel = {
+  api: "API reference",
+  guide: "Guides",
+  cookbook: "Cookbook",
+}[section];
+---
+<nav class="bc" aria-label="Breadcrumb">
+  <a href={withBase("/docs")}>Docs</a>
+  <span class="sep" aria-hidden="true">/</span>
+  <a href={withBase(`/docs#${section}`)}>{sectionLabel}</a>
+  <span class="sep" aria-hidden="true">/</span>
+  <span class="current" aria-current="page">{title}</span>
+</nav>
+
+<style>
+  .bc {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--color-ink-faded);
+    letter-spacing: 0.04em;
+    margin-bottom: 1.2rem;
+  }
+  .bc a { color: var(--color-ink-muted); text-decoration: none; }
+  .bc a:hover { color: var(--color-accent); }
+  .sep { margin: 0 0.5em; opacity: 0.6; }
+  .current { color: var(--color-sumi); }
+</style>

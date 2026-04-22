@@ -1,0 +1,89 @@
+---
+title: RssAnomalyConfig
+symbol: RssAnomalyConfig
+section: api
+order: 9
+kind: class
+since: "0.1.0"
+watermark: 見
+summary: "Memory (RSS) anomaly detector with ceiling / spike / drop modes."
+---
+
+Frozen dataclass with three independent detection modes. Any mode slot set to `None` disables that mode only.
+
+- **Ceiling** — `max_mb` is a hard RSS limit. Breach raises severity `error`.
+- **Spike** — `spike_ratio` + `min_spike_mb` detect relative growth over the baseline window. Severity `warning`.
+- **Drop** — `drop_ratio` + `min_drop_mb` detect a relative decline (off by default). Severity `warning`.
+
+Durations are duration strings (`"30m"`, `"1h"`, `"90s"`) or integer seconds. `baseline_duration` must be at least as long as `duration`. Defaults match the source verbatim.
+
+## Fields
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `duration` | `str \| int` | Short evaluation window (current load). | `"1m"` |
+| `baseline_duration` | `str \| int` | Baseline window the current value is compared against. | `"30m"` |
+| `max_mb` | `float \| None` | Ceiling in MB. `None` disables the ceiling mode. | `450.0` |
+| `spike_ratio` | `float \| None` | Growth factor vs. baseline (e.g. `1.5` = +50%). | `1.5` |
+| `min_spike_mb` | `float \| None` | Absolute growth floor — suppresses spikes under this delta. | `50.0` |
+| `drop_ratio` | `float \| None` | Decline factor in `(0, 1)`. `None` disables drop mode. | `None` |
+| `min_drop_mb` | `float \| None` | Absolute drop floor. | `None` |
+
+Computed properties: `duration_sec`, `baseline_duration_sec`.
+
+## Example
+
+```python
+import snitchbot
+from snitchbot import AnomalyConfig, RssAnomalyConfig
+
+snitchbot.init(
+    "orders-api",
+    anomaly=AnomalyConfig(
+        rss=RssAnomalyConfig(
+            max_mb=600,
+            spike_ratio=2.0,
+            min_spike_mb=80,
+            drop_ratio=0.5,
+            min_drop_mb=100,
+        ),
+    ),
+)
+```
+
+> Telegram shows:
+
+```text
+🔴 anomaly · orders-api · a7af9c
+RSS ceiling: 612 MB (limit 600 MB)
+Details
+  time      11:17:40 UTC
+  pid       1550
+  type      rss_ceiling
+  window    1m
+  baseline  420 MB
+  current   612 MB
+```
+
+Spike variant:
+
+```text
+🟠 anomaly · orders-api · e5f6a7
+RSS spike: 183 MB (baseline 70 MB, +160%)
+Details
+  time      11:17:40 UTC
+  pid       1550
+  type      rss_spike
+  window    1m
+  baseline  70 MB
+  current   183 MB
+```
+
+## Notes
+
+Bad values raise `InvalidAnomalyConfigError` at construction — `max_mb <= 0`, `spike_ratio` outside `(0, 100]`, `drop_ratio` outside `(0, 1)`, or a `baseline_duration` shorter than `duration`.
+
+## Related
+
+- [`AnomalyConfig`](./anomaly-config) — the container.
+- [`CpuAnomalyConfig`](./cpu-anomaly-config), [`FdAnomalyConfig`](./fd-anomaly-config), [`ThreadAnomalyConfig`](./thread-anomaly-config) — identical shape for other metrics.

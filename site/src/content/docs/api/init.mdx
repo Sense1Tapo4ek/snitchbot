@@ -1,0 +1,77 @@
+---
+title: init()
+symbol: init
+section: api
+order: 1
+kind: function
+since: "0.1.0"
+watermark: 見
+summary: "Initialises the client and spawns the sidecar subprocess."
+---
+
+Call once, as early as possible. Wires `sys.excepthook`, `threading.excepthook`, the asyncio handler, signal handlers (main thread only) and `atexit`; starts the watchdog daemon; registers a post-fork hook. Safe from any thread. Same-config repeat calls are a no-op. Runtime errors drop into degraded mode — only bad arguments and unsupported platforms raise.
+
+If `chat_id` resolves to a forum-enabled supergroup AND the bot has `can_manage_topics`, the sidecar runs in **forum mode** and creates one topic per `service`. Otherwise it falls back to **simple mode** (one shared stream). Detection is automatic; opt out with `forum=False`.
+
+## Signature
+
+```python
+def init(
+    service: str,
+    *,
+    token: str | None = None,
+    chat_id: str | int | None = None,
+    anomaly=None,
+    disabled: bool = False,
+    role: str = "standalone",
+    live_dashboard: bool = True,
+    sample_interval_sec: int = 5,
+    chart_width: int = 35,
+    forum: bool | str = "auto",
+    topic_color: int | None = None,
+) -> None
+```
+
+## Parameters
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `service` | `str` | Shown in the chat header and every alert. Pick a stable name. | *required* |
+| `token` | `str \| None` | Bot API token. Falls back to `SNITCHBOT_TOKEN`, then `.env`. | `None` |
+| `chat_id` | `str \| int \| None` | Target chat id. Falls back to `SNITCHBOT_CHAT_ID`, then `.env`. | `None` |
+| `anomaly` | `AnomalyConfig \| bool \| None` | `None` / `True` = defaults, `False` = all off, or an [`AnomalyConfig`](./anomaly-config). | `None` |
+| `disabled` | `bool` | Kill-switch. Also honours `SNITCHBOT_DISABLED=1`. | `False` |
+| `role` | `str` | Process role (`"web"`, `"worker"`, `"beat"`). | `"standalone"` |
+| `live_dashboard` | `bool` | Pin a dashboard message, rewrite on every vitals sample. | `True` |
+| `sample_interval_sec` | `int` | psutil sample cadence, `[1, 60]`. | `5` |
+| `chart_width` | `int` | Width of ASCII charts rendered by `/chart`. | `35` |
+| `forum` | `bool \| "auto"` | `"auto"` (default) — detect forum chat at startup. `True` — force forum mode (errors loudly if chat is not a forum). `False` — force simple mode. See [Forum mode guide](../guide/forum-mode). | `"auto"` |
+| `topic_color` | `int \| None` | One of Telegram's 7 preset topic colours: `7322096, 16766590, 13338331, 9367192, 16749490, 16478047, 7396918`. When set, the topic created for **this service** uses the given colour. Other services keep auto-derived colours. | `None` |
+
+## Example
+
+```python
+import snitchbot
+
+snitchbot.init(
+    "orders-api",
+    role="web",
+    live_dashboard=True,
+)
+
+# After this: crashes go to Telegram,
+# /status /chart /export work in the chat.
+```
+
+> Telegram shows:
+> `▶ orders-api (web) started` with a meta block of `pid` and UTC `time`.
+
+## Notes
+
+Uvicorn / Gunicorn workers each spawn their own sidecar via the post-fork hook. Every worker appears in lifecycle alerts with its own pid.
+
+## Related
+
+- [`notify()`](./notify) — send ad-hoc alerts once `init()` has run.
+- [`AnomalyConfig`](./anomaly-config) — tune or disable the vitals detectors.
+- [Guide: FastAPI integration](../guide/fastapi) — wire `init()` into an ASGI app.

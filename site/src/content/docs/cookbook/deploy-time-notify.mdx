@@ -1,0 +1,60 @@
+---
+title: Deploy-time notify
+section: cookbook
+order: 1
+watermark: 方
+summary: "Fire a single notify() from CI at the end of a deploy."
+---
+
+# Deploy-time notify
+
+Your deploy finishes. Nobody notices v1.8.2 rolled back until a customer pings in #support two hours later.
+
+## The problem
+
+Most CI pipelines log the rollback to stdout and move on. You can glue a curl-to-Slack step on, then copy-paste the payload for Telegram, then do it again for every service. Or you install `snitchbot`, run `init()` once, and call `notify()` like any other Python function.
+
+## The recipe
+
+```python
+# deploy.py — run at the end of your CI pipeline
+import snitchbot
+
+snitchbot.init("ci")
+
+snitchbot.notify(
+    "Deploy rolled back to v1.8.2",
+    severity="warning",
+    extras={
+        "previous": "v1.8.3",
+        "duration_s": 47,
+        "rolled_by": "ci-bot",
+    },
+)
+
+# `init()` registered an `atexit` hook that drains the socket on normal exit.
+# On a short-lived CI runner, give it a beat before the process ends.
+import time
+time.sleep(1.0)
+```
+
+## What you see
+
+```text
+🟠 notify · ci · a1b2c3
+Deploy rolled back to v1.8.2
+Details
+  time     17:02:11 UTC
+  pid      42
+  caller   deploy.py:5 in <module>()
+Extras
+  previous     v1.8.3
+  duration_s   47
+  rolled_by    ci-bot
+```
+
+## Notes
+
+- `init()` spawns a sidecar subprocess and registers an `atexit` hook that drains the socket on normal exit. On a short-lived CI runner add a `time.sleep(1.0)` before the script ends — otherwise the runner reaps the process before the event leaves the buffer.
+- Use `severity="error"` for failed deploys, `"critical"` for prod rollbacks that paged someone. Routing follows severity.
+- See [`notify()`](../api/notify) for the full signature.

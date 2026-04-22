@@ -1,0 +1,167 @@
+---
+title: FastAPI integration
+section: guide
+order: 2
+watermark: 結
+read_time: "5 min"
+summary: "install(app) attaches middleware that scopes every request into snitchbot."
+---
+
+**guide · 5 min read**
+
+# FastAPI — one call, three hooks.
+
+`install(app)` from `snitchbot.integrations.fastapi` attaches a Starlette middleware plus a global exception handler. Every request runs inside a `request_context` with `trace_id`, `http_method`, `http_path`, `client_ip`. Every response carries an `X-Snitchbot-Trace-Id` header. Every 5xx becomes a critical alert with query params and safe headers attached.
+
+| Works with | Needs | Since |
+|---|---|---|
+| FastAPI >= 0.100 | `snitchbot` | 0.1.0 |
+
+## Step 01 — step :00 · install
+
+snitchbot has no hard FastAPI dependency — add FastAPI yourself if you don't already have it.
+
+```shell
+$ uv add snitchbot fastapi uvicorn
+# pip install snitchbot fastapi uvicorn also works
+```
+
+Make sure your `.env` has `SNITCHBOT_TOKEN` and `SNITCHBOT_CHAT_ID` set (see [Getting started](./getting-started)).
+
+## Step 02 — step :02 · wire it up
+
+Call `snitchbot.init()` before constructing the `FastAPI()` instance. Then call `install(app)` exactly once.
+
+```python
+# main.py
+import logging
+from fastapi import FastAPI
+
+import snitchbot
+from snitchbot.integrations.fastapi import install
+
+snitchbot.init("fastapi-demo")
+snitchbot.setup_logging()  # optional: forward WARNING+ logs to Telegram
+
+app = FastAPI()
+install(app)
+
+logger = logging.getLogger("fastapi-demo")
+
+
+@app.get("/")
+async def root() -> dict:
+    return {"status": "ok"}
+
+
+@app.post("/checkout")
+async def checkout(cart_value: int = 100) -> dict:
+    snitchbot.notify(
+        "Large checkout initiated",
+        severity="warning",
+        extras={"cart_value": cart_value},
+    )
+    return {"status": "processing"}
+
+
+@app.get("/search")
+async def search(query: str) -> dict:
+    # Unhandled exception -> 500 -> critical alert with query params attached
+    raise ValueError("Unknown search backend")
+
+
+@app.get("/disk-check")
+async def disk_check() -> dict:
+    # Because setup_logging() is installed, this WARNING reaches Telegram
+    # with trace_id + method + path attached.
+    logger.warning("Disk space running low", extra={"free_gb": 2.5})
+    return {"status": "warning"}
+```
+
+> 💡 **Tip:** call `install(app)` _after_ your own middlewares. The snitchbot middleware wraps the whole stack, so it sees both inbound headers and outbound responses regardless of ordering.
+
+## Step 03 — step :05 · see it work
+
+Start the server and hit a few endpoints.
+
+```shell
+$ uvicorn main:app --reload
+```
+
+```shell
+$ curl -i http://localhost:8000/
+HTTP/1.1 200 OK
+x-snitchbot-trace-id: req-4f2a8c1b
+content-type: application/json
+
+{"status":"ok"}
+
+$ curl -X POST "http://localhost:8000/checkout?cart_value=500"
+{"status":"processing"}
+
+$ curl "http://localhost:8000/search?query=widget"
+{"detail":"Internal server error"}
+```
+
+The first `curl` shows the trace header that is injected on every response. The second produces a `notify()` with request context. The third triggers a 5xx.
+
+> 📨 **Telegram shows:**
+> ```text
+> 🟠 notify · fastapi-demo · a1b2c3
+> Large checkout initiated
+> Details
+>   time     15:12:04 UTC
+>   pid      2211
+>   caller   main.py:22 in checkout()
+> Extras
+>   cart_value   500
+> Context
+>   trace_id     req-4f2a8c1b
+>   http_method  POST
+>   http_path    /checkout
+>   client_ip    127.0.0.1
+> ```
+
+And for the `/search` crash:
+
+> 📨 **Telegram shows:**
+> ```text
+> 🟣 exception · fastapi-demo · 2eec9c
+> ValueError: Unknown search backend
+> Details
+>   time     15:12:08 UTC
+>   pid      2211
+> Extras
+>   query_params  {'query': 'widget'}
+>   headers       {'host': 'localhost:8000', 'user-agent': 'curl/8.4.0', ...}
+> Context
+>   trace_id     req-9d4e1a7f
+>   http_method  GET
+>   http_path    /search
+>   client_ip    127.0.0.1
+> Exception: ValueError: Unknown search backend
+> ```
+
+Sensitive headers (`authorization`, `cookie`, `x-api-key`, `x-auth-token`, `proxy-authorization`, `set-cookie`) are stripped before the alert is built.
+
+## Troubleshooting
+
+**Q: I call `install(app)` but no alert appears when my endpoint raises.**
+A: `install()` only handles the generic `Exception` path. If you register your own `@app.exception_handler(Exception)` after it, your handler wins. Either let snitchbot be the fallback (register your specific handlers for narrower exception types), or manually call `snitchbot.notify(..., exc_info=exc)` from your handler.
+
+**Q: Gunicorn + Uvicorn workers — do I get duplicate alerts?**
+A: No. Each worker has its own sidecar, its own pid, and its own fingerprint in the header. Deduplication is per-sidecar, so identical errors across workers will appear as separate messages. Use the `role="web"` kwarg on `init()` to distinguish them.
+
+**Q: Can I skip the middleware for specific routes?**
+A: Not via snitchbot config. Exclude routes with standard middleware gating: subclass the behaviour, or route around `install(app)` entirely and use `request_context()` manually inside the handlers you do want instrumented.
+
+**Q: My handler catches its own exception and returns 500 — does snitchbot still see it?**
+A: No, not via the exception path. Returning `JSONResponse(status_code=500, ...)` is a normal response from Starlette's perspective. Call `snitchbot.notify(..., severity="critical", exc_info=exc)` inside the handler if you want the alert.
+
+> Running multiple FastAPI services through one bot? Point them at a forum supergroup and snitchbot will give each service its own topic. See [Forum mode](./forum-mode).
+
+## What's next
+
+- [`request_context()`](../api/request-context) — build your own per-request scope outside FastAPI.
+- [Configuring anomalies](./configuring-anomalies) — tune thresholds for your service.
+- [`notify()`](../api/notify) — send ad-hoc alerts with extras.

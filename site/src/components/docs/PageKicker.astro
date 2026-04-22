@@ -1,0 +1,18 @@
+---
+interface Props {
+  text: string;
+}
+const { text } = Astro.props;
+---
+<p class="kicker">{text}</p>
+
+<style>
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin: 0 0 0.6rem;
+  }
+</style>

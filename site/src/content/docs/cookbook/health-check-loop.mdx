@@ -1,0 +1,68 @@
+---
+title: Health-check loop
+section: cookbook
+order: 4
+watermark: 方
+summary: "Alert once when your liveness probe flips to unhealthy — not every 30 seconds."
+---
+
+# Health-check loop
+
+Liveness probe goes red. Kubernetes takes five minutes to restart the pod. You find out from a customer.
+
+## The problem
+
+A naive loop that notifies on every failed probe turns a minor hiccup into a 60-message flood. A loop that only notifies on the flip is four lines of state you end up writing in every service. snitchbot's dedup would collapse the flood anyway — but pairing it with a local edge-triggered guard gives you a single alert when status changes, plus a single recovery alert when it flips back.
+
+## The recipe
+
+```python
+# health_watcher.py
+import asyncio
+import httpx
+import snitchbot
+
+snitchbot.init("orders-api")
+
+async def watch(url: str) -> None:
+    healthy = True
+    async with httpx.AsyncClient(timeout=5) as client:
+        while True:
+            try:
+                r = await client.get(url)
+                ok = r.status_code == 200
+            except httpx.RequestError:
+                ok = False
+
+            if healthy and not ok:
+                snitchbot.notify(
+                    "health check failed",
+                    severity="error",
+                    extras={"endpoint": url},
+                )
+            elif not healthy and ok:
+                snitchbot.notify("health check recovered", severity="warning")
+            healthy = ok
+            await asyncio.sleep(30)
+
+asyncio.run(watch("http://localhost:8080/healthz"))
+```
+
+## What you see
+
+```text
+🔴 notify · orders-api · c9d4e2
+health check failed
+Details
+  time     17:02:11 UTC
+  pid      42
+  caller   health_watcher.py:17 in watch()
+Extras
+  endpoint   http://localhost:8080/healthz
+```
+
+## Notes
+
+- If your app exposes a probe endpoint at all, snitchbot's watchdog thread is probably already catching the same stall via event-loop heartbeat — you may not need this loop. See [`WatchdogConfig`](../api/watchdog-config).
+- The `healthy` flag is edge-triggered, so even without snitchbot's dedup you get exactly one alert per transition.
+- For multi-instance deployments, put the tenant / host / pod name in `extras` so you know which replica tripped.

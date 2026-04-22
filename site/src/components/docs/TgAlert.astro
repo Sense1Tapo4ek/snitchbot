@@ -1,0 +1,23 @@
+---
+import TgWindow from "../telegram/TgWindow.astro";
+import TgMessage from "../telegram/TgMessage.astro";
+
+interface Props {
+  service: string;
+  time?: string;
+  day?: string;
+}
+const { service, time = "12:57 UTC", day = "Apr 17" } = Astro.props;
+---
+<div class="tga">
+  <TgWindow service={service} minHeight="380px" showCommands={false} day={day}>
+    <TgMessage time={time}>
+      <slot />
+    </TgMessage>
+  </TgWindow>
+</div>
+
+<style>
+  .tga { margin: 1.2rem 0; }
+  .tga :global(.tg) { max-width: 520px; }
+</style>

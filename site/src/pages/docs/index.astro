@@ -1,0 +1,141 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Sidebar from "../../components/docs/Sidebar.astro";
+import Watermark from "../../components/docs/Watermark.astro";
+import PageKicker from "../../components/docs/PageKicker.astro";
+import { withBase } from "../../lib/base";
+
+const all = await getCollection("docs");
+const bySection = {
+  api: all.filter(e => e.data.section === "api").sort((a, b) => a.data.order - b.data.order),
+  guide: all.filter(e => e.data.section === "guide").sort((a, b) => a.data.order - b.data.order),
+  cookbook: all.filter(e => e.data.section === "cookbook").sort((a, b) => a.data.order - b.data.order),
+};
+---
+<BaseLayout title="Docs · snitchbot">
+  <div class="docs">
+    <div class="docs__sb"><Sidebar currentSlug="" /></div>
+
+    <main class="reading">
+      <article class="reading__inner">
+        <Watermark char="書" />
+        <PageKicker text="documentation · v0.1.0" />
+        <h1 class="idx__title">The <span class="accent">snitchbot</span> manual</h1>
+        <p class="idx__lede">
+          Everything the library actually does, one page per idea. Pick a
+          section — API reference for every public symbol, guides for
+          integrations and tuning, cookbook for copy-paste recipes.
+        </p>
+
+        <section id="guide" class="idx__sec">
+          <h2>Guides</h2>
+          <ul class="idx__list">
+            {bySection.guide.map(e => (
+              <li><a href={withBase(`/docs/${e.slug}`)}>
+                <b>{e.data.title}</b>
+                <span>{e.data.summary}</span>
+              </a></li>
+            ))}
+          </ul>
+        </section>
+
+        <section id="api" class="idx__sec">
+          <h2>API reference</h2>
+          <ul class="idx__list">
+            {bySection.api.map(e => (
+              <li><a href={withBase(`/docs/${e.slug}`)}>
+                <b>{e.data.title}</b>
+                <span>{e.data.summary}</span>
+              </a></li>
+            ))}
+          </ul>
+        </section>
+
+        <section id="cookbook" class="idx__sec">
+          <h2>Cookbook</h2>
+          <ul class="idx__list">
+            {bySection.cookbook.map(e => (
+              <li><a href={withBase(`/docs/${e.slug}`)}>
+                <b>{e.data.title}</b>
+                <span>{e.data.summary}</span>
+              </a></li>
+            ))}
+          </ul>
+        </section>
+      </article>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  .docs {
+    display: grid;
+    grid-template-columns: var(--docs-sidebar-w) 1fr;
+    min-height: 100vh;
+  }
+  .docs__sb { position: sticky; top: 0; max-height: 100vh; overflow-y: auto; }
+  .reading { position: relative; background: var(--color-reading-bg); }
+  .reading__inner {
+    position: relative;
+    padding: 3.2rem 3.2rem 5rem;
+    max-width: calc(var(--docs-reading-max) + 6rem);
+    margin: 0 auto;
+    color: var(--color-sumi);
+    font-family: var(--font-body);
+    font-size: 15.5px;
+    line-height: 1.7;
+  }
+  .idx__title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(36px, 5vw, 52px);
+    line-height: 1.1;
+    margin: 0.4rem 0 0.8rem;
+  }
+  .idx__title .accent { color: var(--color-accent); }
+  .idx__lede {
+    font-size: 16.5px;
+    color: var(--color-sumi-soft);
+    margin: 0 0 2.2rem;
+    max-width: var(--docs-reading-max);
+  }
+  .idx__sec { margin-top: 2rem; }
+  .idx__sec h2 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 28px;
+    color: var(--color-sumi);
+    margin: 0 0 0.8rem;
+  }
+  .idx__list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.2rem; }
+  .idx__list a {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 1.2rem;
+    padding: 0.7rem 0;
+    text-decoration: none;
+    color: var(--color-sumi);
+    border-top: 1px solid rgba(138, 122, 95, 0.18);
+  }
+  .idx__list li:last-child a { border-bottom: 1px solid rgba(138, 122, 95, 0.18); }
+  .idx__list a b {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 13.5px;
+    color: var(--color-sumi);
+  }
+  .idx__list a span {
+    font-size: 13.5px;
+    color: var(--color-ink-muted);
+    line-height: 1.55;
+  }
+  .idx__list a:hover b { color: var(--color-accent); }
+  @media (max-width: 900px) {
+    .docs { grid-template-columns: 1fr; }
+    .docs__sb { display: none; }
+    .idx__list a { grid-template-columns: 1fr; gap: 0.2rem; }
+  }
+</style>

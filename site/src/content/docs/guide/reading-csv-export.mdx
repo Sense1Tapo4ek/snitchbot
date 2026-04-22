@@ -1,0 +1,145 @@
+---
+title: Reading the CSV export
+section: guide
+order: 6
+watermark: 記
+read_time: "5 min"
+summary: "Load /export CSVs into pandas or duckdb — the vitals rolling buffer as a time series."
+---
+
+**guide · 5 min read**
+
+# Reading the CSV export — vitals as a time series.
+
+The `/export` command in your Telegram chat uploads `<service>_vitals.csv` — the sidecar's entire rolling vitals buffer, one row per sample. Pipe it into pandas or duckdb and you have a ready time series for post-mortems and capacity planning.
+
+| Works with | Needs | Since |
+|---|---|---|
+| pandas / duckdb / any CSV reader | `snitchbot` | 0.1.0 |
+
+## Step 01 — step :00 · trigger it
+
+In the chat, send `/export`. The bot replies with a file attachment whose caption counts the samples:
+
+```text
+orders-api_vitals.csv
+12.4 KB · Document
+Vitals export: 128 samples
+```
+
+Download it. The filename is `<service>_vitals.csv` — the `service` you passed to `snitchbot.init()`.
+
+## Step 02 — step :02 · the schema
+
+Five columns, comma-separated, UTF-8, with a header row:
+
+```text
+timestamp,rss_mb,cpu_percent,threads,fds
+2026-04-17 12:16:34,43.5,4.1,6,14
+2026-04-17 12:16:39,71.2,62.4,11,18
+2026-04-17 12:16:44,76.8,88.6,12,22
+2026-04-17 12:16:49,83.5,100.2,13,26
+...
+```
+
+- `timestamp` — wall-clock UTC string, second precision (`%Y-%m-%d %H:%M:%S`).
+- `rss_mb` — resident set size, megabytes, one decimal.
+- `cpu_percent` — process CPU percent, one decimal. Can exceed 100 on multi-core.
+- `threads` — integer thread count.
+- `fds` — integer open file descriptor count. Empty on platforms where `psutil.num_fds()` isn't available.
+
+The rolling buffer length is determined by your anomaly config — by default it's long enough to cover the longest `baseline_duration` across all enabled detectors. For typical configs that's 30–60 minutes.
+
+## Step 03 — step :05 · pandas
+
+```python
+import pandas as pd
+
+df = pd.read_csv(
+    "orders-api_vitals.csv",
+    parse_dates=["timestamp"],
+)
+df = df.set_index("timestamp")
+
+# Average CPU over the last hour
+df.last("1h")["cpu_percent"].mean()
+
+# Max RSS per 5-minute bucket
+df["rss_mb"].resample("5min").max().plot()
+
+# When did threads exceed 20?
+df[df["threads"] > 20].head()
+```
+
+For incident post-mortems, the two-column view is usually enough:
+
+```python
+df[["rss_mb", "cpu_percent"]].plot(subplots=True, figsize=(10, 6))
+```
+
+## Step 04 — step :10 · duckdb
+
+No dataframe needed — query the file directly:
+
+```python
+import duckdb
+
+con = duckdb.connect()
+
+# Max RSS and CPU per 5-minute bucket
+con.execute("""
+    SELECT
+        time_bucket(INTERVAL 5 MINUTE, timestamp::TIMESTAMP) AS bucket,
+        MAX(rss_mb)     AS peak_rss,
+        MAX(cpu_percent) AS peak_cpu,
+        MAX(threads)    AS peak_threads,
+        MAX(fds)        AS peak_fds
+    FROM read_csv_auto('orders-api_vitals.csv')
+    GROUP BY bucket
+    ORDER BY bucket
+""").df()
+```
+
+Joining two services' exports to compare them during the same incident:
+
+```python
+con.execute("""
+    SELECT o.timestamp, o.cpu_percent AS orders_cpu, b.cpu_percent AS billing_cpu
+    FROM read_csv_auto('orders-api_vitals.csv')  AS o
+    JOIN read_csv_auto('billing-api_vitals.csv') AS b USING (timestamp)
+    WHERE o.timestamp BETWEEN '2026-04-17 12:00' AND '2026-04-17 12:30'
+""").df()
+```
+
+## Correlating with your own notify() events
+
+Log business events with `snitchbot.notify` that include a `deploy_id` or `release` extra. Those events arrive in Telegram with timestamps you can jot down against the CSV range — or, for a more ergonomic setup, write the same timestamps to a local JSON file at notify-time and join against the CSV:
+
+```python
+events = pd.read_json("deploy_events.jsonl", lines=True)
+merged = pd.merge_asof(
+    df.reset_index().sort_values("timestamp"),
+    events.sort_values("timestamp"),
+    on="timestamp",
+    direction="backward",
+    tolerance=pd.Timedelta("5min"),
+)
+```
+
+Now a CPU spike row tells you which deploy was in flight at the time.
+
+## Troubleshooting
+
+**Q: `/export` times out on a large history.**
+A: Telegram's `sendDocument` caps at 50 MB. In practice that's ≈ 30 days of 5-second sampling. If you're over, lower `sample_interval_sec` or trigger `/export` more often and archive. The sidecar drops the oldest samples when the buffer fills, so an export is always a sliding window.
+
+**Q: Timestamps drift when the host's clock is adjusted (NTP step).**
+A: The sidecar stamps each sample against `time.monotonic()` and converts to wall-clock at export time using `time.time() - time.monotonic()`. If your clock steps backwards mid-capture, nearby rows can get the same timestamp or even go non-monotonic. Treat the export as approximate — for ms-precision post-mortems, use proper OS-level metrics.
+
+**Q: `fds` column is empty on macOS.**
+A: `psutil.Process().num_fds()` is Linux-only. On macOS the column is blank. Thread count works everywhere.
+
+## What's next
+
+- [`/chart` in the metrics section](/#metrics) — see the same vitals as ASCII charts in-chat.
+- [Configuring anomalies](./configuring-anomalies) — set alert thresholds that match what the exported data tells you.

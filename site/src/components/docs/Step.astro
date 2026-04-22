@@ -1,0 +1,56 @@
+---
+interface Props {
+  number: string;
+  kicker: string;
+  title: string;
+}
+const { number, kicker, title } = Astro.props;
+---
+<section class="st">
+  <div class="st__num" aria-hidden="true">{number}</div>
+  <div class="st__body">
+    <p class="st__kicker">{kicker}</p>
+    <h2 class="st__title" id={`step-${number}`}>{title}</h2>
+    <div class="st__content"><slot /></div>
+  </div>
+</section>
+
+<style>
+  .st {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 1.2rem;
+    margin: 2rem 0 2.4rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid rgba(138, 122, 95, 0.2);
+  }
+  .st:first-of-type { border-top: none; padding-top: 0.4rem; }
+  .st__num {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 42px;
+    color: var(--color-accent);
+    line-height: 1;
+  }
+  .st__kicker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink-faded);
+    margin: 0 0 0.4rem;
+  }
+  .st__title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 24px;
+    line-height: 1.2;
+    color: var(--color-sumi);
+    margin: 0 0 0.8rem;
+  }
+  .st__content :global(p) { line-height: 1.65; }
+  @media (max-width: 600px) {
+    .st { grid-template-columns: 1fr; gap: 0.4rem; }
+  }
+</style>

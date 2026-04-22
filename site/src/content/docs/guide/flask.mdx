@@ -1,0 +1,136 @@
+---
+title: Flask integration
+section: guide
+order: 3
+watermark: 結
+read_time: "4 min"
+summary: "install(app) wires before_request, after_request, and a 5xx error handler into your Flask app."
+---
+
+**guide · 4 min read**
+
+# Flask — one call, three hooks.
+
+`install(app)` from `snitchbot.integrations.flask` registers a `before_request` that pushes a `request_context` with `trace_id`, `http_method`, `http_path`, `client_ip`; an `after_request` that injects an `X-Snitchbot-Trace-Id` response header; and a 5xx handler that captures query params and safe headers before re-raising.
+
+| Works with | Needs | Since |
+|---|---|---|
+| Flask >= 2.3 | `snitchbot` | 0.1.0 |
+
+## Step 01 — step :00 · install
+
+snitchbot has no hard Flask dependency — add Flask yourself if you don't already have it.
+
+```shell
+$ uv add snitchbot flask
+# pip install snitchbot flask also works
+```
+
+Make sure your `.env` has `SNITCHBOT_TOKEN` and `SNITCHBOT_CHAT_ID` set (see [Getting started](./getting-started)).
+
+## Step 02 — step :02 · wire it up
+
+Call `snitchbot.init()` before constructing the `Flask()` instance. Then call `install(app)` exactly once. Internally the call does three things: registers a `before_request` that opens a `request_context` and builds a `trace_id` of the form `req-{uuid4hex[:8]}`; registers an `after_request` that writes the trace id onto the response as `X-Snitchbot-Trace-Id`; and registers a handler for `Exception` that forwards 5xx failures through `notify(source="exception", severity="critical")` with the current request's `query_params` and `safe_headers` attached. Sensitive header keys — `authorization`, `cookie`, `proxy-authorization`, `x-api-key`, `x-auth-token` — are redacted before they leave the process.
+
+```python
+# app.py
+import logging
+from flask import Flask
+
+import snitchbot
+from snitchbot.integrations.flask import install
+
+app = Flask(__name__)
+
+snitchbot.init("flask-demo")
+snitchbot.setup_logging()  # optional: WARNING+ logs -> Telegram
+install(app)
+
+logger = logging.getLogger("flask-demo")
+
+
+@app.route("/")
+def root() -> dict:
+    return {"status": "ok"}
+
+
+@app.route("/notify")
+def notify_example() -> dict:
+    # inherits http_method, http_path, client_ip, trace_id from the request
+    snitchbot.notify("Flask health check", severity="warning")
+    return {"sent": True}
+
+
+@app.route("/crash")
+def crash_endpoint() -> dict:
+    raise ValueError("Flask crash!")
+```
+
+Run it:
+
+```shell
+$ flask --app app run --reload
+```
+
+> 💡 **Tip:** The `before_request` hook is sync — Flask handlers run on the WSGI thread pool, so context propagation works per-request without `contextvars` acrobatics. If you spawn your own `threading.Thread` inside a handler, pass the context forward manually.
+
+## Step 03 — step :05 · see it work
+
+Hit any endpoint and snitchbot annotates every event with the request's context:
+
+```shell
+$ curl -s 'http://localhost:5000/crash'
+# -> 500 Internal Server Error
+# -> alert appears ↓
+```
+
+```text
+🟣 exception · flask-demo · bb9d31
+ValueError: Flask crash!
+Details
+  time      15:13:22 UTC
+  pid       2211
+Extras
+  query_params   {}
+  safe_headers   {"host": "localhost:5000", "user-agent": "curl/8.5.0"}
+Context
+  http_method  GET
+  http_path    /crash
+  client_ip    127.0.0.1
+  trace_id     req-d2e8c4a1
+Exception
+  Traceback (most recent call last):
+    File "app.py", line 22, in crash_endpoint
+      raise ValueError("Flask crash!")
+  ValueError: Flask crash!
+```
+
+The 5xx bridge calls `notify(source="exception", severity="critical")`, so the alert kind is `exception`, not `crash` — `crash` is reserved for unhandled exceptions caught by `sys.excepthook` / `threading.excepthook`.
+
+The response still carries the header you'd need to correlate a client log with this alert:
+
+```
+X-Snitchbot-Trace-Id: req-d2e8c4a1
+```
+
+## Troubleshooting
+
+**Q: The Flask reloader double-spawns the sidecar.**
+A: When `--reload` is on, Werkzeug runs two processes — a supervisor and a worker. Each calls `snitchbot.init()`. That's expected: each gets its own sidecar with a different `pid` and you'll see two lifecycle messages. In production (gunicorn, uwsgi, or any WSGI server — `flask run` is a dev server) only the workers run, and each gets one sidecar per process.
+
+**Q: I'm using Blueprints — does `install()` still cover them?**
+A: Yes. `install(app)` hooks the app-level `before_request` / `after_request`, which run for every registered route including Blueprints. Per-blueprint hooks run after the app-level ones.
+
+**Q: What about running under gunicorn?**
+A: Each worker process calls `snitchbot.init()` independently via the post-fork handler, gets its own sidecar, and reports with `role=worker` in lifecycle alerts. No extra configuration.
+
+**Q: How do I correlate a browser error with the Telegram alert?**
+A: The response always carries `X-Snitchbot-Trace-Id`. Log it on the client or include it in your error-reporting pipeline — the fingerprint plus the trace id is enough to pinpoint the exact request that tripped the alert, even when dedup has folded hundreds of identical 5xx into a single message.
+
+> Running multiple Flask services through one bot? Point them at a forum supergroup and snitchbot will give each service its own topic. See [Forum mode](./forum-mode).
+
+## What's next
+
+- [`request_context()`](../api/request-context) — attach trace_id to anything, inside or outside Flask.
+- [Configuring anomalies](./configuring-anomalies) — tune RSS/CPU/FD/thread thresholds for your service.
+- [Group alerts by tenant](../cookbook/group-by-tenant) — wrap per-request context with your own tenant id.

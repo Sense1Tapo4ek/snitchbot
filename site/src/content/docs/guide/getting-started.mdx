@@ -1,0 +1,146 @@
+---
+title: Getting started
+section: guide
+order: 1
+watermark: 道
+read_time: "5 min"
+summary: "Three steps — bot token, chat id, one init() call — and crashes flow into Telegram."
+---
+
+**guide · 5 min read**
+
+# Getting started — from zero to a first alert.
+
+A working snitchbot install takes three inputs: a Telegram bot token, a chat id to write to, and a single `init()` call. Uncaught exceptions are captured automatically once `init()` has run; everything else (`notify()`, `@watch_slow`, `request_context`) is opt-in on top of that.
+
+| Works with | Needs | Since |
+|---|---|---|
+| Python >= 3.10 | `snitchbot` | 0.1.0 |
+
+## Step 01 — step :00 · create the bot
+
+Open a chat with [@BotFather](https://t.me/BotFather), send `/newbot`, pick a display name and a username. BotFather returns an HTTP token that looks like `123456789:AA...`. Keep it secret — anyone with this token can post as your bot.
+
+```shell
+$ # in Telegram, DM @BotFather
+$ /newbot
+$ # follow prompts; copy the token it returns
+```
+
+Then add the bot to the chat you want alerts in. For a DM, search for its username and send `/start`. For a group, add the bot as a member — it does not need admin rights.
+
+## Step 02 — step :02 · find the chat id
+
+snitchbot writes to a numeric chat id, not a username. The easiest way to find it is [@userinfobot](https://t.me/userinfobot).
+
+- **DM target:** start a chat with `@userinfobot`, it replies with your id.
+- **Group target:** add `@userinfobot` to the group, it posts the group id (negative integer, e.g. `-1001234567890`). Remove it afterwards.
+
+Put both values into a local `.env` file — snitchbot reads it on `init()`:
+
+```shell
+# .env
+SNITCHBOT_TOKEN=123456789:AA...
+SNITCHBOT_CHAT_ID=-1001234567890
+```
+
+> 💡 **Tip:** you can also pass `token=` and `chat_id=` directly to `init()`. The env-file path is just the cheapest way to keep secrets out of source.
+
+## Step 03 — step :05 · install and call init
+
+Install the package and call `init()` as early as you can — before any other import that might crash.
+
+```shell
+$ uv add snitchbot
+# pip install snitchbot also works
+```
+
+```python
+# main.py
+import snitchbot
+
+snitchbot.init("my-service")
+
+# That's it. Uncaught exceptions are now reported.
+# Nothing below is required — it's there to show what else you can do.
+
+snitchbot.notify("deploy complete", severity="warning")
+
+@snitchbot.watch_slow(threshold_ms=1000)
+async def process_order(order_id: str) -> None:
+    ...
+
+with snitchbot.request_context(trace_id="req-abc", user_id="42"):
+    snitchbot.notify("checkout started")
+```
+
+Run the file. The startup lifecycle event lands in Telegram within a second:
+
+```text
+▶ my-service started
+━━━━━━━━━━━━━━━━━━
+pid        1718711
+time       15:12:04 UTC
+```
+
+Now trigger a crash to confirm the excepthook is wired:
+
+```python
+# crash_test.py
+import snitchbot
+
+snitchbot.init("my-service")
+
+raise RuntimeError("sanity check")
+```
+
+```shell
+$ python crash_test.py
+```
+
+> 📨 **Telegram shows:**
+> ```text
+> 🔴 crash · my-service · a1b2c3
+> RuntimeError: sanity check
+> Details
+>   time     15:12:05 UTC
+>   pid      1718711
+> Stack (top 3 user frames)
+>   crash_test.py:5 in <module>()
+>     raise RuntimeError("sanity check")
+> ```
+
+If you see that message, you are done. Everything else in the docs is optional polish on top of this foundation.
+
+## Two modes
+
+snitchbot picks one of two operating modes by inspecting the chat at startup. Nothing to configure — the right mode is detected automatically.
+
+|                    | Simple mode | Forum mode |
+|--------------------|-------------|------------|
+| Chat type          | DM, group, channel | Supergroup with **Topics** enabled |
+| Services per bot   | one (or many sharing one stream) | many (one topic each) |
+| `/status` scope    | global | scoped to current topic; global in General |
+| Setup overhead     | none | enable Topics + give bot **Manage Topics** right |
+
+Want one bot to host alerts for many services in clean per-service threads? See **[Forum mode](./forum-mode)**.
+
+## Troubleshooting
+
+**Q: `init()` ran, but no alert arrived after a crash.**
+A: Check the sidecar is alive — `ps -ef | grep snitchbot.sidecar`. If it isn't, look at stderr of your program. The most common cause is a bad token (`401 Unauthorized` from the Bot API) or a chat id the bot was never added to. snitchbot never raises these — they are logged at WARNING.
+
+**Q: I see `snitchbot vitals cache: 60 samples × 5s = 300s history, ~7 KB` in my logs. Is that an error?**
+A: No. It's a one-line info log from `init()` showing the sampling buffer size. Set `sample_interval_sec=` or tune `AnomalyConfig` if you want a different cadence.
+
+**Q: How do I disable snitchbot in tests without editing code?**
+A: Set `SNITCHBOT_DISABLED=1` in the environment. `init()` returns immediately and no sidecar is spawned. You can also pass `disabled=True` explicitly.
+
+**Q: Gunicorn / Uvicorn workers — do I get one alert per worker?**
+A: Yes, each worker has its own sidecar and posts its own lifecycle events. A post-fork hook reinitialises in every child. Use the `role=` kwarg (e.g. `"web"`, `"worker"`) to distinguish them in the chat.
+
+## What's next
+
+- [FastAPI integration](./fastapi) — scope every HTTP request automatically.
+- [Configuring anomalies](./configuring-anomalies) — tune RSS/CPU/FD/thread detectors.
+- [`init()` reference](../api/init) — every kwarg, every default.

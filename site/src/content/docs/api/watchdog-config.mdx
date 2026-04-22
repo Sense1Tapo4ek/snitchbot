@@ -1,0 +1,83 @@
+---
+title: WatchdogConfig
+symbol: WatchdogConfig
+section: api
+order: 8
+kind: class
+since: "0.1.0"
+watermark: 見
+summary: "Asyncio event-loop watchdog — multi-threshold severity for stalled loops."
+---
+
+Frozen dataclass. The watchdog runs as a daemon thread and measures the gap since the last pinger tick on your event loop. Three thresholds map to three severities — `warning` for a regular stall, `error` and `critical` for progressively longer blocks. Repeated hits inside `escalation_window` escalate severity; `cooldown_sec` is the minimum gap between identical alerts.
+
+Invariants enforced in `__post_init__`: `threshold_ms > 0`, `error_threshold_ms > threshold_ms`, `critical_threshold_ms` strictly greater than whichever of the two lower floors is set, `cooldown_sec >= 0`. Violations raise `InvalidAnomalyConfigError`.
+
+## Fields
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `enabled` | `bool` | Master switch. | `True` |
+| `threshold_ms` | `int` | Minimum loop-block duration to emit a `warning`. | `500` |
+| `error_threshold_ms` | `int \| None` | Block duration that escalates to `error`. Must exceed `threshold_ms`. | `2000` |
+| `critical_threshold_ms` | `int \| None` | Block duration that escalates to `critical`. Must exceed both lower thresholds. | `5000` |
+| `cooldown_sec` | `int` | Minimum gap between two alerts of the same severity. | `10` |
+| `escalation_window` | `str \| int` | Duration string (`"1m"`, `"30s"`) or seconds. Repeated hits inside this window bump severity. | `"1m"` |
+
+Computed: `escalation_window_sec` returns the parsed window in seconds.
+
+## Example
+
+```python
+import snitchbot
+from snitchbot import AnomalyConfig, WatchdogConfig
+
+snitchbot.init(
+    "orders-api",
+    anomaly=AnomalyConfig(
+        watchdog=WatchdogConfig(
+            threshold_ms=300,
+            error_threshold_ms=1500,
+            critical_threshold_ms=4000,
+            cooldown_sec=15,
+        ),
+    ),
+)
+```
+
+> Telegram shows:
+
+```text
+🟠 watchdog · worker · 7c6497
+Event loop blocked for 612 ms (threshold 500 ms)
+Details
+  time   11:25:10 UTC
+  pid    1580
+  loop   main
+
+🔴 watchdog · worker · 7c6497 × 2
+Event loop blocked for 1700 ms (threshold 500 ms)
+Details
+  first  11:25:10 UTC
+  last   11:25:20 UTC
+  pid    1580
+  loop   main
+
+🟣 watchdog · worker · 732334
+Event loop blocked for 4200 ms (threshold 500 ms)
+Details
+  time   11:25:24 UTC
+  pid    1580
+  loop   main
+```
+
+Severity escalates as the block duration crosses each threshold inside `escalation_window`.
+
+## Notes
+
+Disable the watchdog entirely by passing `watchdog=None` to `AnomalyConfig`, or toggle `enabled=False` on the instance.
+
+## Related
+
+- [`AnomalyConfig`](./anomaly-config) — where this belongs.
+- [Guide: configuring anomalies](../guide/configuring-anomalies).

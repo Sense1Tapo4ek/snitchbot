@@ -1,0 +1,74 @@
+---
+title: AnomalyConfig
+symbol: AnomalyConfig
+section: api
+order: 7
+kind: class
+since: "0.1.0"
+watermark: 見
+summary: "Top-level container bundling the five anomaly detectors passed to init(anomaly=…)."
+---
+
+Frozen dataclass that groups the five detectors snitchbot runs against per-process vitals. Every field defaults to its spec-default instance — passing `AnomalyConfig()` is the same as passing nothing. Set a slot to `None` to disable **that one** detector; use [`AnomalyConfig.all_disabled()`](#fields) to turn everything off. `init()` accepts `AnomalyConfig`, `True` (defaults), `False` (all off) or `None` (defaults) in its `anomaly` argument.
+
+Defaults match the source — read them verbatim below.
+
+## Fields
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `rss` | [`RssAnomalyConfig`](./rss-anomaly-config) `\| None` | Memory detector (ceiling / spike / drop). | `RssAnomalyConfig()` |
+| `cpu` | [`CpuAnomalyConfig`](./cpu-anomaly-config) `\| None` | CPU% detector. | `CpuAnomalyConfig()` |
+| `fds` | [`FdAnomalyConfig`](./fd-anomaly-config) `\| None` | File-descriptor detector. | `FdAnomalyConfig()` |
+| `threads` | [`ThreadAnomalyConfig`](./thread-anomaly-config) `\| None` | Thread-count detector. | `ThreadAnomalyConfig()` |
+| `watchdog` | [`WatchdogConfig`](./watchdog-config) `\| None` | Asyncio event-loop watchdog. | `WatchdogConfig()` |
+
+Class methods:
+
+- `AnomalyConfig.defaults()` — equivalent to `AnomalyConfig()`.
+- `AnomalyConfig.all_disabled()` — every slot set to `None`.
+- `AnomalyConfig.from_dict(data)` — inverse of `.resolve()`; used by the sidecar on handshake.
+- `.resolve()` — serialise to the msgpack-friendly wire dict.
+- `.max_history_seconds()` — longest `baseline_duration` across enabled detectors (drives the vitals deque size).
+
+## Example
+
+```python
+import snitchbot
+from snitchbot import AnomalyConfig, RssAnomalyConfig, WatchdogConfig
+
+snitchbot.init(
+    "orders-api",
+    anomaly=AnomalyConfig(
+        rss=RssAnomalyConfig(max_mb=600, spike_ratio=2.0),
+        watchdog=WatchdogConfig(threshold_ms=300),
+        # cpu / fds / threads keep their defaults
+    ),
+)
+
+# Disable everything:
+snitchbot.init("batch-job", anomaly=False)
+```
+
+> Telegram shows:
+
+```text
+🔴 anomaly · orders-api · a7af9c
+RSS ceiling: 612 MB (limit 600 MB)
+Details
+  time      11:17:40 UTC
+  pid       1550
+  type      rss_ceiling
+  window    1m
+  baseline  420 MB
+  current   612 MB
+```
+
+## Notes
+
+`None` on a detector slot disables only that detector — the rest keep their defaults. Bad construction raises `InvalidAnomalyConfigError` at dataclass init (before `snitchbot.init` touches any state).
+
+## Related
+
+- [`RssAnomalyConfig`](./rss-anomaly-config), [`CpuAnomalyConfig`](./cpu-anomaly-config), [`FdAnomalyConfig`](./fd-anomaly-config), [`ThreadAnomalyConfig`](./thread-anomaly-config), [`WatchdogConfig`](./watchdog-config)
+- [Guide: configuring anomalies](../guide/configuring-anomalies)

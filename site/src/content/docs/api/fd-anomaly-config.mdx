@@ -1,0 +1,73 @@
+---
+title: FdAnomalyConfig
+symbol: FdAnomalyConfig
+section: api
+order: 11
+kind: class
+since: "0.1.0"
+watermark: 見
+summary: "File-descriptor anomaly detector — leak and pool-collapse detection."
+---
+
+Frozen dataclass targeting FD leaks and pool collapses. Spike mode is elevated to `error` because leaked descriptors usually mean resource exhaustion is near.
+
+- **Ceiling** — `max_fds` is an absolute FD cap (a soft pre-ulimit tripwire). Severity `error`.
+- **Spike** — `spike_ratio` + `min_spike_delta` detect leaks. Severity `error`.
+- **Drop** — `drop_ratio` + `min_drop_delta` catch pool collapse. Severity `warning`.
+
+All integer deltas here (min_spike_delta / min_drop_delta) are counts of file descriptors.
+
+## Fields
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `duration` | `str \| int` | Short evaluation window. | `"5m"` |
+| `baseline_duration` | `str \| int` | Baseline window. | `"1h"` |
+| `max_fds` | `int \| None` | Absolute FD ceiling. `None` disables ceiling mode. | `800` |
+| `spike_ratio` | `float \| None` | Growth factor vs. baseline. | `1.5` |
+| `min_spike_delta` | `int \| None` | FD delta floor for a spike. | `50` |
+| `drop_ratio` | `float \| None` | Decline factor in `(0, 1)`. | `0.5` |
+| `min_drop_delta` | `int \| None` | FD delta floor for a drop. | `50` |
+
+Computed properties: `duration_sec`, `baseline_duration_sec`.
+
+## Example
+
+```python
+import snitchbot
+from snitchbot import AnomalyConfig, FdAnomalyConfig
+
+snitchbot.init(
+    "proxy-gateway",
+    anomaly=AnomalyConfig(
+        fds=FdAnomalyConfig(
+            max_fds=4096,
+            spike_ratio=1.3,
+            min_spike_delta=100,
+        ),
+    ),
+)
+```
+
+> Telegram shows:
+
+```text
+🔴 anomaly · proxy-gateway · 91e7da
+FD leak: 842 -> 1240 (+398)
+Details
+  time      11:24:55 UTC
+  pid       1550
+  type      fds_spike
+  window    5m
+  baseline  842
+  current   1240
+```
+
+## Notes
+
+Pass `fds=None` to `AnomalyConfig` to disable the whole detector rather than tuning each mode off.
+
+## Related
+
+- [`AnomalyConfig`](./anomaly-config), [`ThreadAnomalyConfig`](./thread-anomaly-config)
+- [Guide: configuring anomalies](../guide/configuring-anomalies)

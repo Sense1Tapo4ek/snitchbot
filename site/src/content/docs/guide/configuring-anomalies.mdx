@@ -1,0 +1,210 @@
+---
+title: Configuring anomalies
+section: guide
+order: 5
+watermark: 調
+read_time: "8 min"
+summary: "Tune RSS, CPU, FD, thread, and watchdog thresholds so alerts catch real problems without crying wolf."
+---
+
+**guide · 8 min read**
+
+# Configuring anomalies — picking numbers that don't cry wolf.
+
+Anomaly detection is the easiest feature to over-tune: defaults are chosen for a "typical" Python service and will fire on some workloads, stay silent on others. This guide walks you through the v2 unified model, picks reasonable values per metric, and shows how to disable detectors you don't care about.
+
+| Works with | Needs | Since |
+|---|---|---|
+| all runtimes | `snitchbot` | 0.1.0 (v2 model) |
+
+## The v2 unified model
+
+Every metric (RSS, CPU, FDs, threads) supports the same three detection modes. You pick which modes are on and how they trigger:
+
+- **Ceiling** — absolute hard limit. Fires once current value crosses the limit. Severity `error`.
+- **Spike** — relative growth vs a baseline window. Fires when current exceeds `baseline × spike_ratio` AND the absolute change is above a minimum. Severity `warning` (or `error` for FDs).
+- **Drop** — relative decline vs baseline. Useful for catching worker-pool collapse or FD close-storms. Severity `warning`.
+
+Any mode can be disabled by passing `None` for its parameter. Disabling all three disables the detector entirely.
+
+## Windows and baselines
+
+Two time strings tune every detector:
+
+- `duration` — the alert window. How long the condition must hold before we fire. Keeps short blips quiet.
+- `baseline_duration` — the reference window for spike/drop detection. The current metric is compared to the average over this window.
+
+Formats: `"15s"`, `"1m"`, `"5m"`, `"30m"`, `"1h"`, `"1d"`. Integers are also accepted as seconds.
+
+Defaults differ per metric to fit the signal's natural rhythm:
+
+| Metric | `duration` default | `baseline_duration` default |
+|---|---|---|
+| RSS | `"1m"` | `"30m"` |
+| CPU | `"2m"` | `"20m"` |
+| FDs | `"5m"` | `"1h"` |
+| Threads | `"1m"` | `"15m"` |
+
+## Tuning per metric
+
+### RSS (memory)
+
+Defaults from `RssAnomalyConfig`:
+
+```python
+RssAnomalyConfig(
+    duration="1m",
+    baseline_duration="30m",
+    max_mb=450.0,           # ceiling — error
+    spike_ratio=1.5,        # +50% vs baseline — warning
+    min_spike_mb=50.0,      # and ≥ 50 MB absolute
+    drop_ratio=None,        # drop disabled (GC spikes are normal)
+)
+```
+
+When to change:
+
+- **Web service** — raise `max_mb` to match your container's limit minus headroom (e.g. 1.5 GB for a 2 GB limit). Leave spike at default.
+- **Worker with caches** — lower `spike_ratio` to `1.3` if you care about gradual leaks, raise `min_spike_mb` to `100` so normal cache fill-up doesn't page.
+- **Short-lived CLI** — disable RSS entirely (`rss=None`) — the baseline window is longer than the process lifetime.
+
+### CPU
+
+Defaults from `CpuAnomalyConfig`:
+
+```python
+CpuAnomalyConfig(
+    duration="2m",
+    baseline_duration="20m",
+    max_percent=90.0,       # ceiling — error
+    spike_ratio=2.5,        # 2.5× vs baseline — warning
+    min_spike_delta=30.0,   # and ≥ 30 percentage points
+)
+```
+
+When to change:
+
+- **I/O-bound service** (low steady-state CPU) — keep defaults. Spike will catch runaway loops.
+- **Batch job** — raise `max_percent` to `95` or disable ceiling (`max_percent=None`) because you expect sustained CPU.
+- **Realtime handler** — lower `spike_ratio` to `1.8` so CPU doubling is caught fast.
+
+### FDs (file descriptors)
+
+Defaults from `FdAnomalyConfig`:
+
+```python
+FdAnomalyConfig(
+    duration="5m",
+    baseline_duration="1h",
+    max_fds=800,            # ceiling — error (FD leak guard)
+    spike_ratio=1.5,        # FD leak — error
+    min_spike_delta=50,     # and ≥ 50 more FDs
+    drop_ratio=0.5,         # pool collapse — warning
+    min_drop_delta=50,
+)
+```
+
+FD leaks grow slowly — keep the long baseline. Lower `max_fds` to `max(256, ulimit // 2)` if you know your `ulimit -n`.
+
+### Threads
+
+Defaults from `ThreadAnomalyConfig`:
+
+```python
+ThreadAnomalyConfig(
+    duration="1m",
+    baseline_duration="15m",
+    max_threads=100,
+    spike_ratio=1.5,
+    min_spike_delta=10,
+    drop_ratio=0.5,
+    min_drop_delta=5,
+)
+```
+
+Thread leaks usually mean an executor pool isn't being closed. A persistent 50% spike over 1 min is almost always a bug.
+
+## Watchdog — multi-threshold severity
+
+The watchdog detects event-loop stalls. Unlike metric detectors, it has three severity tiers based on how long the loop was blocked:
+
+```python
+WatchdogConfig(
+    threshold_ms=500,            # 🟠 warning
+    error_threshold_ms=2000,     # 🔴 error
+    critical_threshold_ms=5000,  # 🟣 critical
+    escalation_window="1m",
+    cooldown_sec=10,
+)
+```
+
+- `threshold_ms` — minimum stall to fire at all. Default 500 ms catches anything that would feel noticeable to a user.
+- `error_threshold_ms` / `critical_threshold_ms` — repeated stalls within `escalation_window` are promoted to the next severity. Set to `None` to cap at warning.
+- `cooldown_sec` — minimum time between two watchdog alerts for the same fingerprint. Prevents a flood when one bad handler gets hit repeatedly.
+
+If your service has legitimate long operations on the loop (rare — usually this is a bug), raise `threshold_ms` rather than disabling the watchdog. Disabled watchdog = silent production.
+
+## Turning a detector off
+
+Pass `None` for the mode or the entire detector:
+
+```python
+snitchbot.init(
+    "service",
+    anomaly=AnomalyConfig(
+        rss=RssAnomalyConfig(max_mb=None, spike_ratio=None),  # disable all RSS modes
+        cpu=None,                                             # disable CPU entirely
+        fds=FdAnomalyConfig(),                                # defaults
+        threads=None,
+    ),
+)
+```
+
+## A complete tuned example
+
+For a typical HTTP service with known traffic patterns:
+
+```python
+import snitchbot
+from snitchbot import (
+    AnomalyConfig,
+    RssAnomalyConfig,
+    CpuAnomalyConfig,
+    FdAnomalyConfig,
+    ThreadAnomalyConfig,
+    WatchdogConfig,
+)
+
+snitchbot.init(
+    "orders-api",
+    sample_interval_sec=5,
+    anomaly=AnomalyConfig(
+        rss=RssAnomalyConfig(max_mb=1400, spike_ratio=1.4, min_spike_mb=80),
+        cpu=CpuAnomalyConfig(max_percent=85, spike_ratio=2.0),
+        fds=FdAnomalyConfig(max_fds=512),
+        threads=ThreadAnomalyConfig(max_threads=80),
+        watchdog=WatchdogConfig(
+            threshold_ms=400,
+            error_threshold_ms=1500,
+            critical_threshold_ms=5000,
+        ),
+    ),
+)
+```
+
+## Troubleshooting
+
+**Q: I set `spike_ratio=1.2` on RSS and still no alerts.**
+A: Check `min_spike_mb`. If your absolute RSS change is below it, the detector treats the ratio as noise. Lower both.
+
+**Q: Alerts are too noisy — watchdog fires every 10 s.**
+A: Your `threshold_ms` is probably too low for your workload, or one specific handler is consistently slow. Look at the fingerprint — if it repeats, that's a specific bug in one place, not a tuning issue. Use `/mute <fingerprint> 1h` in the chat while you fix it.
+
+**Q: Baseline takes forever to converge after a restart.**
+A: During the `baseline_duration` window after boot, the detector hasn't accumulated enough samples to compute a baseline. Shorten `baseline_duration` for that detector if you restart often. Or accept the first 30 min of silence and rely on the ceiling modes until then.
+
+## What's next
+
+- [`AnomalyConfig`](../api/anomaly-config) — the top-level config and its fields.
+- [`WatchdogConfig`](../api/watchdog-config) — full watchdog reference including validation rules.
+- [Silence noisy warns](../cookbook/silence-noisy-warns) — recipe for muting a repeating fingerprint.

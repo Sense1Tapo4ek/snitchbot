@@ -1,0 +1,156 @@
+---
+import { getCollection } from "astro:content";
+import { withBase } from "../../lib/base";
+
+interface Props {
+  currentSlug: string;
+}
+const { currentSlug } = Astro.props;
+
+const all = await getCollection("docs");
+const bySection = {
+  api: all.filter(e => e.data.section === "api").sort((a, b) => a.data.order - b.data.order),
+  guide: all
+    .filter(e => e.data.section === "guide" && e.slug !== "guide/getting-started")
+    .sort((a, b) => a.data.order - b.data.order),
+  cookbook: all.filter(e => e.data.section === "cookbook").sort((a, b) => a.data.order - b.data.order),
+};
+
+const label = (s: keyof typeof bySection) =>
+  ({ api: "API reference", guide: "Guides", cookbook: "Cookbook" })[s];
+---
+<aside class="sb" aria-label="Docs navigation">
+  <a class="sb__brand" href={withBase("/")}>
+    <span class="sb__kanji" aria-hidden="true">見</span>
+    <span class="sb__brand-text">snitchbot <em>docs</em></span>
+  </a>
+
+  <nav aria-label="Docs sections">
+    <div class="sb__sec">
+      <a
+        class:list={["sb__item", { active: currentSlug === "guide/getting-started" }]}
+        aria-current={currentSlug === "guide/getting-started" ? "page" : undefined}
+        href={withBase("/docs/guide/getting-started")}
+      >
+        Getting started
+      </a>
+    </div>
+
+    {(["api", "guide", "cookbook"] as const).map(section => (
+      <div class="sb__sec">
+        <h3 class="sb__head">{label(section)}</h3>
+        <ul>
+          {bySection[section].map(entry => (
+            <li>
+              <a
+                class:list={["sb__item", { active: entry.slug === currentSlug }]}
+                aria-current={entry.slug === currentSlug ? "page" : undefined}
+                href={withBase(`/docs/${entry.slug}`)}
+              >
+                {entry.data.title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))}
+  </nav>
+
+  <footer class="sb__foot">
+    <span class="sb__sig" aria-hidden="true">書</span>
+    <span>snitchbot · 0.1.0</span>
+  </footer>
+</aside>
+
+<style>
+  .sb {
+    position: relative;
+    width: var(--docs-sidebar-w);
+    padding: 1.8rem 1.3rem 2rem;
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(255, 248, 230, 0.55), transparent 50%),
+      radial-gradient(ellipse at 80% 90%, rgba(230, 215, 190, 0.4), transparent 60%),
+      var(--color-paper);
+    border-right: 1px solid rgba(138, 122, 95, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    min-height: 100vh;
+  }
+  .sb::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.08  0 0 0 0 0.06  0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: 0.5;
+  }
+  .sb > * { position: relative; z-index: 1; }
+
+  .sb__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    text-decoration: none;
+    color: var(--color-sumi);
+    margin-bottom: 0.4rem;
+  }
+  .sb__kanji {
+    font-family: var(--font-jp);
+    color: var(--color-accent);
+    font-size: 28px;
+    line-height: 1;
+  }
+  .sb__brand-text {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-style: italic;
+  }
+  .sb__brand-text em { font-style: normal; color: var(--color-ink-muted); font-size: 14px; }
+
+  .sb__sec + .sb__sec { margin-top: 0.4rem; }
+  .sb__head {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--color-ink-faded);
+    margin: 0.8rem 0 0.4rem;
+  }
+  .sb__sec ul { list-style: none; padding: 0; margin: 0; }
+  .sb__sec li { margin: 0; }
+  .sb__item {
+    display: block;
+    padding: 4px 10px 4px 14px;
+    font-size: 13px;
+    color: var(--color-sumi-soft);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    line-height: 1.45;
+  }
+  .sb__item:hover { color: var(--color-accent); }
+  .sb__item.active {
+    color: var(--color-accent);
+    border-left-color: var(--color-accent);
+    font-weight: 500;
+  }
+
+  .sb__foot {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(138, 122, 95, 0.18);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--color-ink-faded);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .sb__sig {
+    font-family: var(--font-jp);
+    color: var(--color-accent);
+    font-size: 16px;
+    opacity: 0.7;
+  }
+</style>

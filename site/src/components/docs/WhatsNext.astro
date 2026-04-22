@@ -1,0 +1,90 @@
+---
+import { withBase } from "../../lib/base";
+
+interface Link {
+  kind: "api" | "guide" | "cookbook";
+  href: string;
+  title: string;
+  note: string;
+}
+interface Props {
+  links: Link[];
+}
+const { links } = Astro.props;
+const label = {
+  api: "api reference",
+  guide: "guide",
+  cookbook: "cookbook",
+};
+---
+<section class="wn">
+  <h2 id="whats-next">What's next</h2>
+  <ul>
+    {links.map(l => (
+      <li>
+        <a href={withBase(l.href)} class="wn__card">
+          <span class={`wn__kind wn__kind--${l.kind}`}>{label[l.kind]}</span>
+          <span class="wn__title">{l.title}</span>
+          <span class="wn__note">{l.note}</span>
+        </a>
+      </li>
+    ))}
+  </ul>
+</section>
+
+<style>
+  .wn { margin: 2.4rem 0 1rem; }
+  .wn h2 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 24px;
+    color: var(--color-sumi);
+    margin: 0 0 1rem;
+  }
+  .wn ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.9rem;
+  }
+  .wn__card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(138, 122, 95, 0.25);
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--color-sumi);
+    background: transparent;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .wn__card:hover {
+    border-color: var(--color-accent);
+    transform: translateY(-1px);
+  }
+  .wn__kind {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink-faded);
+  }
+  .wn__kind--api      { color: var(--color-accent); }
+  .wn__kind--guide    { color: #6a8a5d; }
+  .wn__kind--cookbook { color: #8b6a3d; }
+  .wn__title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 18px;
+    color: var(--color-sumi);
+  }
+  .wn__note {
+    font-size: 13px;
+    color: var(--color-ink-muted);
+    line-height: 1.5;
+  }
+</style>

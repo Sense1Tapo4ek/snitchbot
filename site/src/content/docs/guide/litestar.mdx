@@ -1,0 +1,158 @@
+---
+title: Litestar integration
+section: guide
+order: 4
+watermark: 結
+read_time: "4 min"
+summary: "install(app) inserts an ASGI middleware and a global exception handler into your Litestar app."
+---
+
+**guide · 4 min read**
+
+# Litestar — one call, two hooks.
+
+`install(app)` from `snitchbot.integrations.litestar` inserts an ASGI middleware at index 0 that wraps every request in a `request_context` (`trace_id`, `http_method`, `http_path`, `client_ip`) and injects an `X-Snitchbot-Trace-Id` response header. It also replaces `app.exception_handlers[Exception]` with a handler that captures query params + safe headers and re-raises the 5xx.
+
+| Works with | Needs | Since |
+|---|---|---|
+| Litestar >= 2.0 | `snitchbot` | 0.1.0 |
+
+## Step 01 — step :00 · install
+
+```shell
+$ uv add snitchbot litestar uvicorn
+# pip install snitchbot litestar uvicorn also works
+```
+
+Set `SNITCHBOT_TOKEN` and `SNITCHBOT_CHAT_ID` in `.env` (see [Getting started](./getting-started)).
+
+## Step 02 — step :02 · wire it up
+
+Call `snitchbot.init()` before building the `Litestar()` app. Then call `install(app)` exactly once, after construction. `install()` does two things: it inserts an ASGI middleware at index 0 of the Litestar middleware stack (so it runs before anything you've added yourself), and it replaces `app.exception_handlers[Exception]` with a handler that forwards 5xx failures through `notify(source="exception", severity="critical")`. The middleware opens a `request_context` for the duration of the ASGI call chain — `receive`, handler, `send` — and builds a `trace_id` of the form `req-{uuid4hex[:8]}`. On the way out it appends `X-Snitchbot-Trace-Id` to the response headers in the `http.response.start` ASGI message. Sensitive keys — `authorization`, `cookie`, `proxy-authorization`, `x-api-key`, `x-auth-token` — are redacted before the headers leave the process.
+
+```python
+# app.py
+import logging
+from litestar import Litestar, get
+
+import snitchbot
+from snitchbot.integrations.litestar import install
+
+snitchbot.init("litestar-demo")
+snitchbot.setup_logging()
+
+logger = logging.getLogger("litestar-demo")
+
+
+@get("/")
+async def root() -> dict:
+    return {"status": "ok"}
+
+
+@get("/notify")
+async def notify_example() -> dict:
+    snitchbot.notify("Litestar health check", severity="warning")
+    return {"sent": True}
+
+
+@get("/crash")
+async def crash_endpoint() -> dict:
+    raise ValueError("Litestar crash!")
+
+
+@get("/slow")
+async def slow_endpoint() -> dict:
+    import time
+    time.sleep(1)  # blocks the loop — watchdog will fire
+    return {"status": "done"}
+
+
+app = Litestar(route_handlers=[
+    root, notify_example, crash_endpoint, slow_endpoint,
+])
+install(app)
+```
+
+Run it:
+
+```shell
+$ LITESTAR_APP=app:app uv run litestar run --reload
+```
+
+> 💡 **Tip:** `install(app)` does `app.middleware.insert(0, DefineMiddleware(_SnitchMiddleware))` — snitchbot's middleware runs before any you've added yourself. That's intentional: the request_context needs to exist before your app's own middleware layer, so anything your middleware does (including `notify()` calls) inherits the trace id.
+
+## Step 03 — step :05 · see it work
+
+Trigger the watchdog from `/slow` — `time.sleep(1)` in an async handler blocks the event loop past the default 500 ms threshold:
+
+```shell
+$ curl -s 'http://localhost:8000/slow'
+```
+
+```text
+🟠 watchdog · litestar-demo · d4e5f6
+Event loop blocked for 1024 ms (threshold 500 ms)
+Details
+  time   12:21:10 UTC
+  pid    1912
+  loop   main
+Stuck tasks (1)
+Task-14 · slow_endpoint
+  File "app.py", line 29, in slow_endpoint
+```
+
+Trigger a crash:
+
+```shell
+$ curl -s 'http://localhost:8000/crash'
+# -> 500 Internal Server Error
+# -> alert appears ↓
+```
+
+```text
+🟣 exception · litestar-demo · bb9d31
+ValueError: Litestar crash!
+Details
+  time      15:13:22 UTC
+  pid       2211
+Extras
+  query_params   {}
+  safe_headers   {"host": "localhost:8000", "user-agent": "curl/8.5.0"}
+Context
+  http_method  GET
+  http_path    /crash
+  client_ip    127.0.0.1
+  trace_id     req-d2e8c4a1
+Exception
+  Traceback (most recent call last):
+    File "app.py", line 22, in crash_endpoint
+      raise ValueError("Litestar crash!")
+  ValueError: Litestar crash!
+```
+
+The 5xx bridge calls `notify(source="exception", severity="critical")` — the alert kind is `exception`, not `crash`; `crash` is reserved for unhandled exceptions caught by `sys.excepthook` / `threading.excepthook`.
+
+Response carries:
+
+```
+X-Snitchbot-Trace-Id: req-d2e8c4a1
+```
+
+## Troubleshooting
+
+**Q: My existing `Exception` handler stopped running after `install(app)`.**
+A: `install()` overwrites `app.exception_handlers[Exception]`. If you have your own, use the legacy form instead — import `exception_handler` and compose it with your own in `app.exception_handlers`. Or wrap snitchbot's handler from your own and forward to it manually.
+
+**Q: `--reload` with uvicorn spawns the sidecar twice.**
+A: Expected. The supervisor and the worker each `init()`. They appear as two `lifecycle.startup` events with different `pid` values. Production (`uvicorn app:app --workers 4`) gets one sidecar per worker via the post-fork hook.
+
+**Q: Does this play well with Litestar DI?**
+A: Yes. snitchbot runs outside Litestar's dependency graph — the middleware and exception handler use `snitchbot.request_context()` directly, without touching DI providers. Your injected dependencies are unchanged.
+
+> Running multiple Litestar services through one bot? Point them at a forum supergroup and snitchbot will give each service its own topic. See [Forum mode](./forum-mode).
+
+## What's next
+
+- [`request_context()`](../api/request-context) — how the per-request scope works.
+- [Configuring anomalies](./configuring-anomalies) — set RSS/CPU thresholds that fit your workload.
+- [FastAPI integration](./fastapi) — the same three hooks for FastAPI if you use both.

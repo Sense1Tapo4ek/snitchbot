@@ -1,0 +1,87 @@
+---
+title: CpuAnomalyConfig
+symbol: CpuAnomalyConfig
+section: api
+order: 10
+kind: class
+since: "0.1.0"
+watermark: 見
+summary: "CPU% anomaly detector with ceiling / spike / drop modes."
+---
+
+Frozen dataclass covering sustained CPU load, bursts above a baseline, and starvation dips.
+
+- **Ceiling** — `max_percent` caps sustained CPU usage across `duration`. Breach: severity `error`.
+- **Spike** — `spike_ratio` + `min_spike_delta` detect relative growth over the baseline. Severity `warning`.
+- **Drop** — `drop_ratio` + `min_drop_delta` catch abrupt starvation (off by default). Severity `warning`.
+
+`max_percent` is measured in 0–100 percent units. Defaults match the source verbatim.
+
+## Fields
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `duration` | `str \| int` | Short evaluation window. | `"2m"` |
+| `baseline_duration` | `str \| int` | Baseline window for the comparison. | `"20m"` |
+| `max_percent` | `float \| None` | Ceiling in CPU%, range `(0, 100]`. `None` disables ceiling mode. | `90.0` |
+| `spike_ratio` | `float \| None` | Growth factor vs. baseline. | `2.5` |
+| `min_spike_delta` | `float \| None` | Absolute CPU% delta floor for a spike. | `30.0` |
+| `drop_ratio` | `float \| None` | Decline factor in `(0, 1)`. | `None` |
+| `min_drop_delta` | `float \| None` | Absolute CPU% delta floor for a drop. | `None` |
+
+Computed properties: `duration_sec`, `baseline_duration_sec`.
+
+## Example
+
+```python
+import snitchbot
+from snitchbot import AnomalyConfig, CpuAnomalyConfig
+
+snitchbot.init(
+    "ingest-worker",
+    anomaly=AnomalyConfig(
+        cpu=CpuAnomalyConfig(
+            max_percent=85.0,
+            spike_ratio=3.0,
+            min_spike_delta=40.0,
+        ),
+    ),
+)
+```
+
+> Telegram shows:
+
+```text
+🟠 anomaly · ingest-worker · c82b14
+CPU spike: 72% (baseline 18%, ×4.0)
+Details
+  time      11:21:02 UTC
+  pid       1550
+  type      cpu_spike
+  window    2m
+  baseline  18%
+  current   72%
+```
+
+Ceiling variant:
+
+```text
+🔴 anomaly · ingest-worker · d9f0b2
+CPU ceiling: 94% (limit 90%)
+Details
+  time      11:22:15 UTC
+  pid       1550
+  type      cpu_ceiling
+  window    2m
+  baseline  60%
+  current   94%
+```
+
+## Notes
+
+Construction-time validation raises `InvalidAnomalyConfigError` on `max_percent` outside `(0, 100]`, `spike_ratio` outside `(0, 100]`, or `drop_ratio` outside `(0, 1)`.
+
+## Related
+
+- [`AnomalyConfig`](./anomaly-config) — the container.
+- [`RssAnomalyConfig`](./rss-anomaly-config) — same pattern for memory.

@@ -1,0 +1,24 @@
+---
+interface Props {
+  char: string;
+}
+const { char } = Astro.props;
+---
+<span class="wm" aria-hidden="true">{char}</span>
+
+<style>
+  .wm {
+    position: absolute;
+    top: 2.4rem;
+    right: 2rem;
+    font-family: var(--font-jp);
+    font-size: 148px;
+    line-height: 0.85;
+    color: var(--color-accent);
+    opacity: 0.10;
+    user-select: none;
+    pointer-events: none;
+    letter-spacing: -0.05em;
+  }
+  @media (max-width: 900px) { .wm { display: none; } }
+</style>

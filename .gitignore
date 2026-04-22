@@ -151,7 +151,6 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation (NOTE: do not ignore /site — it's our Astro landing page)
 # /site
 
 # mypy
@@ -222,4 +221,4 @@ site/node_modules/
 site/dist/
 site/.astro/
 uv.lock
-docs/
+/docs/

@@ -1,0 +1,65 @@
+---
+title: request_context()
+symbol: request_context
+section: api
+order: 4
+kind: function
+since: "0.1.0"
+watermark: 見
+summary: "Context manager that attaches trace_id + extras to every event inside the block."
+---
+
+Thin wrapper around `contextvars.ContextVar`. On enter the context is stored; on exit — including exceptions — the previous value is restored. Because it uses a `ContextVar`, the context propagates automatically through `asyncio.create_task(...)` but **does not** cross into threads started with `threading.Thread`. Nested contexts merge: inner `extras` override outer keys, and `trace_id` is inherited from the enclosing block when not passed. A `trace_id` of `None` stays `None` — snitchbot never invents one.
+
+Empty contexts (no `trace_id`, no `extras`) are reported as absent so events aren't littered with `{"trace_id": null, "context": {}}`.
+
+## Signature
+
+```python
+@contextmanager
+def request_context(
+    *,
+    trace_id: str | None = None,
+    **extras: Any,
+) -> Generator[dict, None, None]
+```
+
+## Parameters
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `trace_id` | `str \| None` | Correlation ID attached to every event inside the block. If omitted, inherited from an outer `request_context` or stays `None`. | `None` |
+| `**extras` | `Any` | Arbitrary flat key-value pairs merged into each event's `context.extras`. Inner calls override outer keys. | `{}` |
+
+Yields the active context dict (mostly useful in tests).
+
+## Example
+
+```python
+import snitchbot
+from fastapi import FastAPI, Request
+
+snitchbot.init("orders-api")
+app = FastAPI()
+
+@app.middleware("http")
+async def attach_ctx(request: Request, call_next):
+    with snitchbot.request_context(
+        trace_id=request.headers.get("x-request-id"),
+        path=request.url.path,
+        user_id=request.state.user_id,
+    ):
+        return await call_next(request)
+```
+
+> Telegram shows:
+> Every alert raised while handling the request carries `trace_id`, `path`, and `user_id` in its meta-block.
+
+## Notes
+
+Threads do not inherit the context. Use `contextvars.copy_context().run(...)` when spawning a thread by hand if you need the same behaviour.
+
+## Related
+
+- [`notify()`](./notify) — picks up the active context automatically.
+- [Guide: FastAPI integration](../guide/fastapi) — full ASGI wiring.

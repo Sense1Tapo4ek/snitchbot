@@ -1,0 +1,21 @@
+---
+---
+<div class="ep">
+  <div class="ep__code"><slot name="code" /></div>
+  <div class="ep__tg"><slot name="tg" /></div>
+</div>
+
+<style>
+  .ep {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+    margin: 1.4rem 0 2rem;
+    align-items: start;
+  }
+  .ep__code :global(.cb) { margin: 0; }
+  .ep__tg { align-self: start; }
+  @media (max-width: 1100px) {
+    .ep { grid-template-columns: 1fr; }
+  }
+</style>

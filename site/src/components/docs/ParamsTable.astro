@@ -1,0 +1,45 @@
+---
+---
+<div class="pt">
+  <slot />
+</div>
+
+<style>
+  .pt { margin: 1.2rem 0 1.8rem; overflow-x: auto; }
+  .pt :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .pt :global(thead th) {
+    text-align: left;
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink-faded);
+    border-bottom: 1px solid rgba(138, 122, 95, 0.4);
+  }
+  .pt :global(tbody td) {
+    padding: 10px;
+    vertical-align: top;
+    border-bottom: 1px solid rgba(138, 122, 95, 0.15);
+    color: var(--color-sumi-soft);
+  }
+  .pt :global(tbody tr:last-child td) { border-bottom: none; }
+  .pt :global(code) {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--color-accent-soft);
+    background: rgba(181, 75, 60, 0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .pt :global(tbody td:first-child) {
+    font-family: var(--font-mono);
+    color: var(--color-sumi);
+    white-space: nowrap;
+  }
+  .pt :global(em) { color: var(--color-accent); font-style: normal; font-size: 11px; }
+</style>
