@@ -165,7 +165,7 @@ Local preview:
 cd site
 pnpm install
 pnpm dev
-# open http://localhost:4321/telegram_analitics/
+# open http://localhost:4321/snitchbot/
 ```
 
 Production build:
@@ -175,7 +175,7 @@ cd site && pnpm build
 # output: site/dist/
 ```
 
-Deployment is automatic on push to `master` when `site/**` or
+Deployment is automatic on push to `main` when `site/**` or
 `.github/workflows/pages.yml` changes. First-time setup requires
 enabling **Pages -> Source: GitHub Actions** in the repo settings.
 
@@ -189,3 +189,46 @@ a future iteration — current fallback is system serif.
 Lighthouse audits should be run locally (desktop + mobile preset). The
 production bundles gzip to ≈ 4.8 KB JS and ≈ 23.8 KB CSS, well within
 the design spec's budgets.
+
+## Release process (PyPI)
+
+Release pipeline lives in `.github/workflows/publish.yml` and uses
+**PyPI Trusted Publishing (OIDC)** — no API tokens, no secrets in repo.
+
+### One-time setup (already done, do not repeat)
+
+1. PyPI account for `Sense1Tapo4ek` with 2FA enabled.
+2. **Pending trusted publisher** added at
+   https://pypi.org/manage/account/publishing/ with:
+   - PyPI project name: `snitchbot`
+   - Owner: `Sense1Tapo4ek`
+   - Repository: `snitchbot`
+   - Workflow name: `publish.yml`
+   - Environment name: `pypi`
+3. GitHub repo: **Settings -> Environments -> New environment `pypi`**
+   (optionally add required reviewers / branch protection for the tag ref).
+
+### How to cut a release
+
+1. Bump version in `pyproject.toml` (single source of truth).
+2. Commit on `main`: `chore: release vX.Y.Z`.
+3. Tag and push:
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+4. Workflow `publish.yml` runs automatically:
+   - verifies tag matches `pyproject.toml` version (hard-fail otherwise),
+   - `uv build` -> sdist + wheel,
+   - `pypa/gh-action-pypi-publish` uploads to PyPI via OIDC.
+5. After success, create a GitHub Release on the tag with changelog
+   (via `gh release create vX.Y.Z --generate-notes` or the web UI).
+
+### Invariants
+
+- Tag MUST be `v<pyproject.version>` — workflow rejects a mismatch.
+- Never publish from a branch other than `main`; Trusted Publisher config
+  only trusts `publish.yml` on this repo.
+- Never hard-code PyPI tokens in `.github/`, `secrets`, or local shells;
+  OIDC is the only supported path.
+- Bump `version` BEFORE tagging, in the same commit as any final changes.
