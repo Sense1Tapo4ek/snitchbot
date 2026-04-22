@@ -1,6 +1,14 @@
 # snitchbot
 
+[![PyPI version](https://img.shields.io/pypi/v/snitchbot.svg)](https://pypi.org/project/snitchbot/)
+[![Python versions](https://img.shields.io/pypi/pyversions/snitchbot.svg)](https://pypi.org/project/snitchbot/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-sense1tapo4ek.github.io-ec4c2a.svg)](https://sense1tapo4ek.github.io/snitchbot/)
+[![CI](https://github.com/Sense1Tapo4ek/snitchbot/actions/workflows/pages.yml/badge.svg)](https://github.com/Sense1Tapo4ek/snitchbot/actions/workflows/pages.yml)
+
 Telegram telemetry for Python services. Crash reports, slow-call alerts, watchdog events, custom notifications, and anomaly detection — delivered to your Telegram chat.
+
+**Docs:** https://sense1tapo4ek.github.io/snitchbot/
 
 ## Features
 
@@ -79,7 +87,7 @@ with snitchbot.request_context(trace_id="req-abc", user_id="42"):
 
 ```bash
 # Clone and install
-git clone <repo-url>
+git clone https://github.com/Sense1Tapo4ek/snitchbot.git
 cd snitchbot
 uv sync --extra dev --extra examples
 
