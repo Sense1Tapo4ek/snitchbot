@@ -116,6 +116,7 @@ class LiveMessageUpdaterWorkflow:
         *,
         clients: dict[int, ClientState],
         now: float,
+        app_totals: dict[str, int | float] | None = None,
     ) -> None:
         """One live message update tick.
 
@@ -124,6 +125,7 @@ class LiveMessageUpdaterWorkflow:
         Args:
             clients: snapshot of current client states
             now:     current wall-clock time (injected for determinism in tests)
+            app_totals: optional application-level aggregate dict for the TOTAL row
         """
         groups = _group_clients_by_service(clients, self._service)
 
@@ -139,6 +141,7 @@ class LiveMessageUpdaterWorkflow:
                 service_clients=service_clients,
                 counters=counters,
                 now=now,
+                app_totals=app_totals,
             )
 
     async def _tick_one_service(
@@ -148,6 +151,7 @@ class LiveMessageUpdaterWorkflow:
         service_clients: list[ClientState],
         counters: dict[str, int],
         now: float,
+        app_totals: dict[str, int | float] | None = None,
     ) -> None:
         """Render + create-or-edit one (chat_id, topic) dashboard."""
         thread_id = await self._telegram_io.resolve_topic(service=service)
@@ -158,6 +162,7 @@ class LiveMessageUpdaterWorkflow:
             sidecar_started_at=self._sidecar_started_at,
             counters=counters,
             now=now,
+            app_totals=app_totals,
         )
         new_hash = _content_hash(rendered)
 

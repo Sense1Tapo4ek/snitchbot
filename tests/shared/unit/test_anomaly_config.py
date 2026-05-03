@@ -36,7 +36,7 @@ from snitchbot.shared.domain.anomaly_config_vo import (
 from snitchbot.shared.generics.errors import DomainError
 
 
-CANONICAL_KEYS = ("rss", "cpu", "fds", "threads", "watchdog")
+CANONICAL_KEYS = ("rss", "cpu", "fds", "threads", "watchdog", "total_rss", "total_cpu")
 
 
 # ---------------------------------------------------------------------------
@@ -49,12 +49,14 @@ class TestDefaults:
         """
         Given AnomalyConfig.defaults(),
         When resolved to the canonical dict,
-        Then all five slots are non-None.
+        Then the five base slots are non-None and total_* are None.
         """
         resolved = AnomalyConfig.defaults().resolve()
         assert set(resolved.keys()) == set(CANONICAL_KEYS)
-        for key in CANONICAL_KEYS:
+        for key in ("rss", "cpu", "fds", "threads", "watchdog"):
             assert resolved[key] is not None, f"detector {key} must be enabled by default"
+        assert resolved["total_rss"] is None
+        assert resolved["total_cpu"] is None
 
     def test_none_produces_defaults(self):
         """
@@ -102,6 +104,8 @@ class TestAllDisabled:
         assert cfg.fds is None
         assert cfg.threads is None
         assert cfg.watchdog is None
+        assert cfg.total_rss is None
+        assert cfg.total_cpu is None
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +128,8 @@ class TestPartialOverride:
         assert resolved["fds"] is not None
         assert resolved["threads"] is not None
         assert resolved["watchdog"] is not None
+        assert resolved["total_rss"] is None
+        assert resolved["total_cpu"] is None
 
     def test_disable_one_detector_via_none(self):
         """
@@ -137,6 +143,8 @@ class TestPartialOverride:
         assert resolved["rss"] is not None
         assert resolved["cpu"] is not None
         assert resolved["threads"] is not None
+        assert resolved["total_rss"] is None
+        assert resolved["total_cpu"] is None
 
     def test_resolve_anomaly_param_passes_instance_through(self):
         """
@@ -407,6 +415,8 @@ class TestResolveRoundTrip:
             fds=None,
             threads=ThreadAnomalyConfig(max_threads=50),
             watchdog=WatchdogConfig(threshold_ms=300, error_threshold_ms=1000),
+            total_rss=None,
+            total_cpu=None,
         )
         wire = original.resolve()
         restored = AnomalyConfig.from_dict(wire)
@@ -425,6 +435,8 @@ class TestResolveRoundTrip:
         assert cfg.rss is None
         assert cfg.cpu is not None  # default, not None
         assert cfg.fds is not None
+        assert cfg.total_rss is None
+        assert cfg.total_cpu is None
 
     def test_resolved_dict_is_plain(self):
         """Canonical form is msgpack-friendly — no dataclass instances."""

@@ -48,6 +48,9 @@ class ISidecarSession(Protocol):
     started_at: float
     first_hello_received: bool
     dispatch_degraded: bool
+    app_total_rss_bytes: int
+    app_total_cpu_percent: float
+    app_children_count: int
 
 
 class IEventQueue(Protocol):

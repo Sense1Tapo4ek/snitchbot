@@ -35,6 +35,9 @@ def _make_vitals(rss_bytes: int = 80 * 1024 * 1024) -> VitalsSnapshot:
         cpu_percent=5.0,
         threads=8,
         fds=12,
+        total_rss_bytes=rss_bytes,
+        total_cpu_percent=5.0,
+        children_count=0,
     )
 
 
@@ -200,6 +203,9 @@ class TestRssRounding:
             cpu_percent=5.0,
             threads=8,
             fds=12,
+            total_rss_bytes=base_rss,
+            total_cpu_percent=5.0,
+            children_count=0,
         ))}
         await wf.tick(clients=clients, now=_NOW)
 
@@ -210,6 +216,9 @@ class TestRssRounding:
             cpu_percent=5.04,                  # rounds to "5.0%" with :.1f
             threads=8,
             fds=12,
+            total_rss_bytes=base_rss + 500 * 1024,
+            total_cpu_percent=5.04,
+            children_count=0,
         )
         # Same now -> 'updated' timestamp identical -> hash depends only on vitals display
         await wf.tick(clients=clients, now=_NOW)

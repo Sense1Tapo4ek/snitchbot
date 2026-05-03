@@ -260,6 +260,9 @@ class TestFdsSamplingInterval:
             cpu_percent=5.0,
             threads=2,
             fds=10,
+            total_rss_bytes=1_000_000,
+            total_cpu_percent=5.0,
+            children_count=0,
         )
         mock_proc = _make_mock_process(create_time=700.0)
         client = _make_client(

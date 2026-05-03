@@ -37,6 +37,9 @@ def _vitals(rss_bytes: int = 80 * 1024 * 1024) -> VitalsSnapshot:
         cpu_percent=5.0,
         threads=8,
         fds=12,
+        total_rss_bytes=rss_bytes,
+        total_cpu_percent=5.0,
+        children_count=0,
     )
 
 

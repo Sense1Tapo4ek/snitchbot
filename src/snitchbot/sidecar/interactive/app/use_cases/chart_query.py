@@ -3,7 +3,7 @@
 Renders ASCII metric charts from client vitals history.
 
 Usage: /chart [metric] [window]
-  metric: cpu | mem | fds | threads | all (default: all)
+  metric: cpu | mem | fds | threads | total_cpu | total_mem | all (default: all)
   window: 1m | 5m | 15m | 1h | 6h | 1d (default: 5m)
 """
 import time as _time
@@ -82,7 +82,7 @@ class ChartQuery:
 
         if metric == "all":
             metrics_data = {}
-            for m in ("cpu", "mem", "fds", "threads"):
+            for m in ("cpu", "mem", "fds", "threads", "total_cpu", "total_mem"):
                 series = extract_metric_series(history, metric=m, window_sec=window_sec, now=now)
                 metrics_data[m] = downsample(series, max_pts)
             chart_text = self._renderer.render_multi(

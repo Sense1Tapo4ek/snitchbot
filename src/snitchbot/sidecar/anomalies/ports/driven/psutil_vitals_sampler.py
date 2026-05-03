@@ -6,8 +6,7 @@ fallback to None) so unittest.mock.patch can replace the module attribute in tes
 import logging
 
 from snitchbot.shared.constants import FDS_SAMPLE_INTERVAL_SEC, VITALS_SAMPLE_SEC
-from snitchbot.shared.domain import ClientState
-from snitchbot.shared.domain import VitalsSnapshot
+from snitchbot.shared.domain import ClientState, VitalsSnapshot
 
 try:
     import psutil  # type: ignore[import-untyped]
@@ -74,12 +73,32 @@ class PsutilVitalsSampler:
             # Keep previous FD value if not due for resample
             fds = client.latest_vitals.fds if client.latest_vitals is not None else None
 
+        # V11: recursively sample child processes
+        rss_child_sum = 0
+        cpu_child_sum = 0.0
+        children_count = 0
+        try:
+            for child in proc.children(recursive=True):
+                try:
+                    rss_child_sum += child.memory_info().rss
+                    cpu_child_sum += child.cpu_percent(interval=None)
+                    children_count += 1
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    # Child vanished or inaccessible — skip silently
+                    continue
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            # Parent-level error during child enumeration — degrade gracefully
+            pass
+
         snapshot = VitalsSnapshot(
             sampled_at=now,
             rss_bytes=rss,
             cpu_percent=cpu,
             threads=threads,
             fds=fds,
+            total_rss_bytes=rss + rss_child_sum,
+            total_cpu_percent=cpu + cpu_child_sum,
+            children_count=children_count,
         )
 
         # V2: append to history

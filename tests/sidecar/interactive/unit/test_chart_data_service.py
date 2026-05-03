@@ -21,6 +21,9 @@ def _snap(
     threads: int = 4,
     fds: int | None = 20,
     base_time: float = 0.0,
+    total_rss_bytes: int | None = None,
+    total_cpu_percent: float | None = None,
+    children_count: int = 0,
 ) -> VitalsSnapshot:
     return VitalsSnapshot(
         sampled_at=base_time + offset,
@@ -28,6 +31,9 @@ def _snap(
         cpu_percent=cpu_percent,
         threads=threads,
         fds=fds,
+        total_rss_bytes=total_rss_bytes if total_rss_bytes is not None else rss_bytes,
+        total_cpu_percent=total_cpu_percent if total_cpu_percent is not None else cpu_percent,
+        children_count=children_count,
     )
 
 

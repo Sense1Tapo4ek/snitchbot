@@ -21,6 +21,8 @@ from snitchbot.sidecar.anomalies.domain.services import (
     check_fds,
     check_rss,
     check_threads,
+    check_total_cpu,
+    check_total_rss,
 )
 
 # ---------------------------------------------------------------------------
@@ -36,6 +38,9 @@ def _snap(
     threads: int = 4,
     fds: int | None = 20,
     offset: float = 0.0,
+    total_rss_bytes: int | None = None,
+    total_cpu_percent: float | None = None,
+    children_count: int = 0,
 ) -> VitalsSnapshot:
     return VitalsSnapshot(
         sampled_at=time.time() + offset,
@@ -43,6 +48,9 @@ def _snap(
         cpu_percent=cpu_percent,
         threads=threads,
         fds=fds,
+        total_rss_bytes=total_rss_bytes if total_rss_bytes is not None else rss_bytes,
+        total_cpu_percent=total_cpu_percent if total_cpu_percent is not None else cpu_percent,
+        children_count=children_count,
     )
 
 
@@ -407,3 +415,60 @@ class TestResultShape:
         required = {"anomaly_type", "current", "baseline", "severity", "window", "details"}
         for r in results:
             assert required.issubset(r.keys()), f"Missing keys in {r}"
+
+
+# ---------------------------------------------------------------------------
+# Total (process + children) detectors
+# ---------------------------------------------------------------------------
+
+
+class TestTotalRssCeiling:
+    def test_triggers_on_total_rss(self):
+        """
+        Given total_rss_bytes=500 MB (exceeds max_mb=200),
+        When check_total_rss runs,
+        Then a total_rss_ceiling result is returned.
+        """
+        history = _stable_history(60, rss_bytes=100 * _MB, total_rss_bytes=500 * _MB)
+        cfg = RssAnomalyConfig(max_mb=200.0, spike_ratio=None, drop_ratio=None)
+        results = check_total_rss(history, cfg)
+        ceiling_results = [r for r in results if r["anomaly_type"] == "total_rss_ceiling"]
+        assert len(ceiling_results) == 1
+        assert ceiling_results[0]["severity"] == "error"
+
+    def test_no_trigger_when_total_below_max(self):
+        """
+        Given total_rss_bytes=100 MB (below max_mb=200),
+        When check_total_rss runs,
+        Then no ceiling result.
+        """
+        history = _stable_history(60, rss_bytes=50 * _MB, total_rss_bytes=100 * _MB)
+        cfg = RssAnomalyConfig(max_mb=200.0, spike_ratio=None, drop_ratio=None)
+        results = check_total_rss(history, cfg)
+        assert all(r["anomaly_type"] != "total_rss_ceiling" for r in results)
+
+
+class TestTotalCpuCeiling:
+    def test_triggers_on_total_cpu(self):
+        """
+        Given total_cpu_percent=95 (exceeds max_percent=90),
+        When check_total_cpu runs,
+        Then a total_cpu_ceiling result is returned.
+        """
+        history = _stable_history(60, cpu_percent=10.0, total_cpu_percent=95.0)
+        cfg = CpuAnomalyConfig(max_percent=90.0, spike_ratio=None, drop_ratio=None)
+        results = check_total_cpu(history, cfg)
+        ceiling_results = [r for r in results if r["anomaly_type"] == "total_cpu_ceiling"]
+        assert len(ceiling_results) == 1
+        assert ceiling_results[0]["severity"] == "error"
+
+    def test_no_trigger_when_total_below_max(self):
+        """
+        Given total_cpu_percent=50 (below max_percent=90),
+        When check_total_cpu runs,
+        Then no ceiling result.
+        """
+        history = _stable_history(60, cpu_percent=10.0, total_cpu_percent=50.0)
+        cfg = CpuAnomalyConfig(max_percent=90.0, spike_ratio=None, drop_ratio=None)
+        results = check_total_cpu(history, cfg)
+        assert all(r["anomaly_type"] != "total_cpu_ceiling" for r in results)

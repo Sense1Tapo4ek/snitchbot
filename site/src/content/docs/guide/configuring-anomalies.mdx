@@ -88,6 +88,34 @@ When to change:
 - **Batch job** — raise `max_percent` to `95` or disable ceiling (`max_percent=None`) because you expect sustained CPU.
 - **Realtime handler** — lower `spike_ratio` to `1.8` so CPU doubling is caught fast.
 
+### Total RSS (process + children)
+
+`total_rss` uses the same `RssAnomalyConfig` VO but measures the sum of RSS across the registered process and **all recursive children**. This is useful when your service spawns workers (e.g. Gunicorn, Celery, multiprocessing pools) and you want to monitor the whole tree, not just the parent.
+
+```python
+AnomalyConfig(
+    total_rss=RssAnomalyConfig(max_mb=2000, spike_ratio=1.5, min_spike_mb=100),
+)
+```
+
+- Disabled by default (`None`).
+- Set to the same config class as `rss`.
+- Alerts are labelled `total_rss_ceiling`, `total_rss_spike`, `total_rss_drop` in Telegram.
+
+### Total CPU (process + children)
+
+`total_cpu` sums `cpu_percent` across the process and all recursive children. Handy for worker pools where individual children may spike but the parent stays low.
+
+```python
+AnomalyConfig(
+    total_cpu=CpuAnomalyConfig(max_percent=150, spike_ratio=2.0),
+)
+```
+
+- Disabled by default (`None`).
+- Set to the same config class as `cpu`.
+- Alerts are labelled `total_cpu_ceiling`, `total_cpu_spike`, `total_cpu_drop`.
+
 ### FDs (file descriptors)
 
 Defaults from `FdAnomalyConfig`:

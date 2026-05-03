@@ -13,6 +13,8 @@ from snitchbot.sidecar.anomalies.domain.services import (
     check_fds,
     check_rss,
     check_threads,
+    check_total_cpu,
+    check_total_rss,
 )
 
 __all__ = ["VitalsSamplerWorkflow"]
@@ -36,15 +38,23 @@ class VitalsSamplerWorkflow:
     _sample_interval_sec: int = 5
 
     def run_sampling_tick(
-        self, clients: dict[int, ClientState], *, now: float
+        self,
+        clients: dict[int, ClientState],
+        *,
+        now: float,
+        session=None,
     ) -> None:
         """Sample all clients and run anomaly detection for each.
 
         Iterates over a snapshot of client values (V5 — concurrent safe).
         After each successful sample, check_anomalies is called (A1).
+        If ``session`` is provided, updates application-level totals after sampling.
         """
         for client in list(clients.values()):
             self._process_client(client, now=now)
+
+        if session is not None:
+            session.update_app_totals(list(clients.values()))
 
     def _process_client(self, client: ClientState, *, now: float) -> None:
         """Sample one client and check anomalies. Handles errors per V5/V6/V7."""
@@ -73,6 +83,8 @@ class VitalsSamplerWorkflow:
             (anomaly_config.cpu, check_cpu),
             (anomaly_config.fds, check_fds),
             (anomaly_config.threads, check_threads),
+            (anomaly_config.total_rss, check_total_rss),
+            (anomaly_config.total_cpu, check_total_cpu),
         ]
 
         for detector_cfg, detector_fn in detectors:

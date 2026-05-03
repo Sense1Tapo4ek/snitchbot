@@ -3,12 +3,13 @@ import time
 from dataclasses import dataclass, field
 
 from snitchbot.shared.constants import SEPARATOR
-from snitchbot.shared.domain.services import fmt_uptime, fmt_window_label
-from snitchbot.shared.domain.services import fmt_utc as _fmt_utc
 from snitchbot.shared.domain.services import (
     WindowParseError,
+    fmt_uptime,
+    fmt_window_label,
     parse_window_seconds,
 )
+from snitchbot.shared.domain.services import fmt_utc as _fmt_utc
 from snitchbot.sidecar.interactive.app.interfaces import (
     IClientRegistry,
     IDedupCache,
@@ -162,7 +163,12 @@ class StatusQuery:
         lines.append(f"<b>Clients ({n_clients})</b>")
         if n_clients > 0:
             lines.append("<pre>")
-            lines.append(f"{'PID':<7}{'role':<10}{'rss':<10}{'cpu':<8}{'seen'}")
+            lines.append(
+                f"{'PID':<7}{'role':<10}"
+                f"{'rss':<9}{'total':<9}"
+                f"{'cpu':<7}{'total':<7}"
+                f"{'ch':<3}{'seen'}"
+            )
             for p, client in live_clients[:15]:
                 role = client.role if client else "unknown"
                 vitals = client.latest_vitals if client else None
@@ -170,21 +176,51 @@ class StatusQuery:
                 last_seen = client.last_seen if client else 0
                 if vitals_status == "unavailable":
                     rss_str = "—"
+                    total_rss_str = "—"
                     cpu_str = "—"
+                    total_cpu_str = "—"
+                    children_str = "—"
                     suffix = " (unavail)"
                 elif vitals is not None:
                     rss_str = _fmt_rss(vitals.rss_bytes)
+                    total_rss_str = _fmt_rss(vitals.total_rss_bytes)
                     cpu_str = _fmt_cpu(vitals.cpu_percent)
+                    total_cpu_str = _fmt_cpu(vitals.total_cpu_percent)
+                    children_str = str(vitals.children_count)
                     suffix = " (stale)" if vitals_status == "stale" else ""
                 else:
                     rss_str = "—"
+                    total_rss_str = "—"
                     cpu_str = "—"
+                    total_cpu_str = "—"
+                    children_str = "—"
                     suffix = ""
                 seen_str = _fmt_seen(time.time() - last_seen) if last_seen > 0 else "?"
-                lines.append(f"{p:<7}{role:<10}{rss_str:<10}{cpu_str:<8}{seen_str}{suffix}")
+                lines.append(
+                    f"{p:<7}{role:<10}"
+                    f"{rss_str:<9}{total_rss_str:<9}"
+                    f"{cpu_str:<7}{total_cpu_str:<7}"
+                    f"{children_str:<3}"
+                    f"{seen_str}{suffix}"
+                )
             if n_clients > 15:
                 lines.append(f"... {n_clients - 15} more")
             lines.append("</pre>")
+        # Application total
+        app_rss = _fmt_rss(self._session.app_total_rss_bytes)
+        app_total_rss = _fmt_rss(self._session.app_total_rss_bytes)
+        app_cpu = _fmt_cpu(self._session.app_total_cpu_percent)
+        app_total_cpu = _fmt_cpu(self._session.app_total_cpu_percent)
+        app_children = str(self._session.app_children_count)
+        lines.append("<b>Application total</b>")
+        lines.append("<pre>")
+        lines.append(
+            f"{'':<17}"
+            f"{app_rss:<9}{app_total_rss:<9}"
+            f"{app_cpu:<7}{app_total_cpu:<7}"
+            f"{app_children:<3}"
+        )
+        lines.append("</pre>")
         lines.append("")
 
         # Traffic counters

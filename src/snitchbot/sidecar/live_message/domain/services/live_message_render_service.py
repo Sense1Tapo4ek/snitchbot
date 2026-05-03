@@ -48,15 +48,28 @@ def _render_client_row(client: ClientState) -> str:
     role = client.role
 
     if client.vitals_status == "unavailable" or client.latest_vitals is None:
-        return f"{pid:<7}{role:<10}{'—':<9}{'—':<7}{'—':<9}{'—':<5}  (unavail)"
+        return (
+            f"{pid:<7}{role:<10}"
+            f"{'—':<8}{'—':<8}{'—':<6}{'—':<6}{'—':<3}"
+            f"{'—':<8}{'—':<4}  (unavail)"
+        )
 
     v = client.latest_vitals
     rss = f"{_rss_mb(v.rss_bytes)} MB"
+    total_rss = f"{_rss_mb(v.total_rss_bytes)} MB"
     cpu = _cpu_str(v.cpu_percent)
+    total_cpu = _cpu_str(v.total_cpu_percent)
+    children = str(v.children_count)
     threads = str(v.threads)
     fds = str(v.fds) if v.fds is not None else "—"
 
-    row = f"{pid:<7}{role:<10}{rss:<9}{cpu:<7}{threads:<9}{fds:<5}"
+    row = (
+        f"{pid:<7}{role:<10}"
+        f"{rss:<8}{total_rss:<8}"
+        f"{cpu:<6}{total_cpu:<6}"
+        f"{children:<3}"
+        f"{threads:<8}{fds:<4}"
+    )
     if client.vitals_status == "stale":
         row += "  (stale)"
     return row
@@ -69,6 +82,7 @@ def render_live_message(
     sidecar_started_at: float,
     counters: dict[str, int],
     now: float,
+    app_totals: dict[str, int | float] | None = None,
 ) -> str:
     """Render live dashboard HTML for Telegram (parse_mode=HTML).
 
@@ -78,6 +92,7 @@ def render_live_message(
         sidecar_started_at: wall-clock time the sidecar process started
         counters:           dict with 'errors', 'warnings', 'slow', 'anomaly' counts (5m window)
         now:                current wall-clock time
+        app_totals:         optional dict with 'rss', 'cpu', 'children' keys for app total row
 
     Returns:
         HTML string suitable for Telegram editMessageText / sendMessage.
@@ -94,12 +109,32 @@ def render_live_message(
     lines.append(f"<b>Clients ({n_total})</b>")
     if n_total > 0:
         lines.append("<pre>")
-        lines.append(f"{'PID':<7}{'role':<10}{'rss':<9}{'cpu':<7}{'threads':<9}{'fds':<5}")
+        lines.append(
+            f"{'PID':<7}{'role':<10}"
+            f"{'rss':<8}{'total':<8}"
+            f"{'cpu':<6}{'total':<6}"
+            f"{'ch':<3}"
+            f"{'threads':<8}{'fds':<4}"
+        )
         shown = live_clients[:_MAX_CLIENTS]
         for c in shown:
             lines.append(_render_client_row(c))
         if n_total > _MAX_CLIENTS:
             lines.append(f"... {n_total - _MAX_CLIENTS} more")
+        # Application total row
+        if app_totals is not None:
+            app_rss = f"{_rss_mb(int(app_totals.get('rss', 0)))} MB"
+            app_total_rss = f"{_rss_mb(int(app_totals.get('total_rss', 0)))} MB"
+            app_cpu = _cpu_str(float(app_totals.get('cpu', 0.0)))
+            app_total_cpu = _cpu_str(float(app_totals.get('total_cpu', 0.0)))
+            app_children = str(int(app_totals.get('children', 0)))
+            lines.append(
+                f"{'TOTAL':<7}{'':<10}"
+                f"{app_rss:<8}{app_total_rss:<8}"
+                f"{app_cpu:<6}{app_total_cpu:<6}"
+                f"{app_children:<3}"
+                f"{'':<8}{'':<4}"
+            )
         lines.append("</pre>")
     lines.append("")
     uptime_sec = now - sidecar_started_at

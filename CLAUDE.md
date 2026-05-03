@@ -23,7 +23,7 @@ src/snitchbot/sidecar/
 ├── __main__.py              # thin delegate -> root/entrypoints/sidecar.py
 ├── session/                 # SidecarSession, idle watcher, graceful shutdown
 ├── muting/                  # MuteState, persistence, mute/unmute UCs + callbacks
-├── anomalies/               # psutil vitals sampling + 4 anomaly detectors
+├── anomalies/               # psutil vitals sampling + 6 anomaly detectors (rss, cpu, fds, threads, total_rss, total_cpu)
 ├── ingest/                  # IPC socket, recv loop, client registry, registration
 ├── telegram_io/             # TG gateway, long polling, routers, budgets
 ├── pipeline/                # dedup -> queue -> rate-limit -> render -> dispatch
@@ -67,7 +67,8 @@ Current status: **S-DDD migration complete.** All 8 bounded contexts extracted, 
 - **Dedup window**: 5 min, byte-cap 10 MB, entry-cap 10 000
 - **Rate limit**: 30 tokens main bucket, critical bypass
 - **Fork safety**: `os.register_at_fork(after_in_child=_after_fork_in_child)`
-- **Anomaly config v2**: unified 3-mode model per metric (ceiling/spike/drop) with time-based windows. Config classes: `RssAnomalyConfig`, `CpuAnomalyConfig`, `FdAnomalyConfig`, `ThreadAnomalyConfig`, `WatchdogConfig`. Old names (`RssSpikeConfig`, `MemoryAnomalyConfig`, etc.) are deprecated aliases. Variable-length vitals history deque sized from `max_history_seconds()`. Configurable `sample_interval_sec` (default 5s). ASCII charts via `/chart` command (asciichartpy)
+- **Anomaly config v2**: unified 3-mode model per metric (ceiling/spike/drop) with time-based windows. Config classes: `RssAnomalyConfig`, `CpuAnomalyConfig`, `FdAnomalyConfig`, `ThreadAnomalyConfig`, `WatchdogConfig`. Aggregate detectors `total_rss` and `total_cpu` (process + recursive children) are opt-in (`None` by default). Old names (`RssSpikeConfig`, `MemoryAnomalyConfig`, etc.) are deprecated aliases. Variable-length vitals history deque sized from `max_history_seconds()`. Configurable `sample_interval_sec` (default 5s). ASCII charts via `/chart` command (asciichartpy).
+- **Subprocess discovery (V11)**: `PsutilVitalsSampler` calls `proc.children(recursive=True)` on every tick and accumulates child RSS/CPU into `VitalsSnapshot.total_rss_bytes`, `total_cpu_percent`, and `children_count`. Child access errors (`NoSuchProcess`, `AccessDenied`) are silently skipped. `total_rss` / `total_cpu` detectors use the same ceiling/spike/drop logic as their "own" counterparts but operate on aggregate values. `SidecarSession` tracks `app_total_rss_bytes`, `app_total_cpu_percent`, and `app_children_count` (sum across all non-dead clients). Live dashboard and `/status` show `own/total/children` per client row plus an Application total block. `/chart` supports `total_mem` and `total_cpu` metrics.
 - **Stats namespaces**: `_client_stats` (host) and `_sidecar_stats` (sidecar) are disjoint — no sharing
 - **Config hash**: `blake2b(f"{token}\0{chat_id}", digest_size=6).hexdigest()` — single source in `shared/domain/services/config_hash_service.py`
 - **DI**: manual wiring in `root/entrypoints/sidecar.py`; client side is singleton-module; no DI framework
@@ -112,6 +113,41 @@ Keep updated as phases complete:
 | ID | Statement |
 |---|---|
 | R1 | Every structured outgoing Telegram message uses `SEPARATOR` (`"━" * 18`, from `src/snitchbot/shared/constants.py`) as a single divider line immediately after the header and before the first content block. No additional separators between inner sections. Callback answers (toast) and markup-only edits are exempt. |
+
+### Vitals-sampling invariants (V1–V11)
+
+| ID | Statement |
+|---|---|
+| V1 | Non-FD metrics (`rss_bytes`, `cpu_percent`, `threads`) are sampled on every tick (default 5 s). |
+| V2 | Vitals history is stored in a `deque` with `maxlen=60` (5-minute sliding window at 5 s intervals). |
+| V3 | `psutil.Process` object is constructed once per client and cached in `ClientState.psutil_process`. |
+| V4 | PID reuse is detected via `psutil_create_time` mismatch against `Process.create_time()`; mismatch raises `NoSuchProcess`. |
+| V5 | An error on one client does not break the sampling loop for remaining clients. |
+| V6 | `NoSuchProcess` on the parent process marks the client `vitals_status='dead'`. |
+| V7 | `AccessDenied` on the whole process marks the client `vitals_status='unavailable'`. |
+| V8 | `AccessDenied` on `num_fds()` only sets `fds=None` without changing client status. |
+| V9 | FDs are sampled every `VITALS_FDS_SAMPLE_SEC` (15 s), not every tick. |
+| V10 | `sleep_remaining` returns `max(0, VITALS_SAMPLE_SEC - elapsed)` to prevent drift. |
+| V11 | Child-process access errors (`NoSuchProcess`, `AccessDenied`) during recursive enumeration are silently skipped; they must never break sampling of the parent or other clients. |
+
+### Anomaly invariants (A1)
+
+| ID | Statement |
+|---|---|
+| A1 | Anomaly detection runs after successful sampling. If conditions are met, `_enqueue_anomaly` is called with the anomaly result before the tick ends. |
+
+### Live-message invariants (LM1–LM8)
+
+| ID | Statement |
+|---|---|
+| LM1 | One live dashboard message per service (per topic in forum mode). `send_message` is never called again once `message_id` is stored. |
+| LM2 | `LIVE_MESSAGE_TICK_SEC` constant equals 10 seconds. |
+| LM3 | `edit_message_text` is called only when rendered content differs from the previous tick; identical content is a no-op. |
+| LM4 | Rendered content is truncated to Telegram's 4096-character limit before sending. |
+| LM5 | No live message is created while no clients have vitals; first message is sent on the first tick with at least one client having `latest_vitals`. |
+| LM6 | On graceful shutdown, the live message is edited with 🔴 and "stopped" text. |
+| LM7 | A fresh sidecar session (no `message_id`) creates a new live message on its first tick with clients. |
+| LM8 | Client `vitals_status` transitions are reflected in rendering: `'stale'` appends a `(stale)` suffix to the client row; `'unavailable'` and `'dead'` statuses are handled by the workflow. |
 
 ### Forum-mode invariants (F1–F8)
 

@@ -497,7 +497,7 @@ def main() -> None:
             """Sample vitals at configured interval per client."""
             while not shutdown_event.is_set():
                 try:
-                    vitals_workflow.run_sampling_tick(registry.clients_dict, now=time.monotonic())
+                    vitals_workflow.run_sampling_tick(registry.clients_dict, now=time.monotonic(), session=session)
                 except Exception:
                     logger.exception("vitals tick error")
                 await asyncio.sleep(float(_sample_sec))
@@ -509,6 +509,13 @@ def main() -> None:
                     await live_message.tick(
                         clients=registry.clients_dict,
                         now=time.time(),
+                        app_totals={
+                            "rss": session.app_total_rss_bytes,
+                            "total_rss": session.app_total_rss_bytes,
+                            "cpu": session.app_total_cpu_percent,
+                            "total_cpu": session.app_total_cpu_percent,
+                            "children": session.app_children_count,
+                        },
                     )
                 except Exception:
                     logger.exception("live message tick error")

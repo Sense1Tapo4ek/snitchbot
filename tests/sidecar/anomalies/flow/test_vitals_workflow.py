@@ -12,7 +12,11 @@ import time
 from collections import deque
 from unittest.mock import MagicMock, patch
 
-from snitchbot.shared.domain.anomaly_config_vo import AnomalyConfig
+from snitchbot.shared.domain.anomaly_config_vo import (
+    AnomalyConfig,
+    CpuAnomalyConfig,
+    RssAnomalyConfig,
+)
 from snitchbot.shared.domain.client_state import ClientState
 from snitchbot.shared.domain.vitals_snapshot_vo import VitalsSnapshot
 from snitchbot.sidecar.anomalies.app.workflows.vitals_sampler_workflow import VitalsSamplerWorkflow
@@ -145,6 +149,9 @@ class TestCallsCheckAnomaliesAfterSample:
                     cpu_percent=5.0,
                     threads=4,
                     fds=20,
+                    total_rss_bytes=baseline_rss,
+                    total_cpu_percent=5.0,
+                    children_count=0,
                 )
             )
 
@@ -201,3 +208,119 @@ class TestClientStatusTransitions:
             workflow.run_sampling_tick(clients, now=time.time())
 
         assert client.vitals_status == "ok"
+
+
+# ---------------------------------------------------------------------------
+# Test: total_rss / total_cpu detectors enqueue events (subprocess discovery)
+# ---------------------------------------------------------------------------
+
+
+class TestTotalDetectors:
+    def test_total_rss_detector_enqueues_event(self) -> None:
+        """
+        Given a client with total_rss_bytes exceeding config max_mb,
+        When run_sampling_tick fires with total_rss detector enabled,
+        Then _enqueue_anomaly is called with a total_rss_ceiling event.
+        """
+        _MB = 1024 * 1024
+        baseline_rss = 100 * _MB
+
+        client = _make_client(pid=500)
+        client.anomaly_config = AnomalyConfig(
+            rss=None,
+            cpu=None,
+            fds=None,
+            threads=None,
+            watchdog=None,
+            total_rss=RssAnomalyConfig(max_mb=200.0, spike_ratio=None, drop_ratio=None),
+            total_cpu=None,
+        )
+        for _ in range(60):
+            client.vitals_history.append(
+                VitalsSnapshot(
+                    sampled_at=time.time(),
+                    rss_bytes=baseline_rss,
+                    cpu_percent=5.0,
+                    threads=4,
+                    fds=20,
+                    total_rss_bytes=baseline_rss,
+                    total_cpu_percent=5.0,
+                    children_count=0,
+                )
+            )
+
+        mock_proc = MagicMock()
+        mock_proc.create_time.return_value = 5.0
+        mock_proc.memory_info.return_value.rss = 250 * _MB
+        mock_proc.cpu_percent.return_value = 5.0
+        mock_proc.num_threads.return_value = 4
+        mock_proc.num_fds.return_value = 20
+        mock_proc.children.return_value = []
+
+        clients = {500: client}
+        enqueue_fn = MagicMock()
+        workflow = VitalsSamplerWorkflow(_enqueue_anomaly=enqueue_fn, _sampler=PsutilVitalsSampler())
+        mock_ps = _mock_psutil_module()
+        mock_ps.Process.return_value = mock_proc
+
+        with patch(_PATCH_TARGET, mock_ps):
+            workflow.run_sampling_tick(clients, now=time.time())
+
+        assert enqueue_fn.call_count >= 1
+        event = enqueue_fn.call_args_list[0][0][0]
+        assert event["kind"] == "anomaly"
+        assert event["pid"] == 500
+        assert event["payload"]["anomaly_type"].startswith("total_rss_")
+
+    def test_total_cpu_detector_enqueues_event(self) -> None:
+        """
+        Given a client with total_cpu_percent exceeding config max_percent,
+        When run_sampling_tick fires with total_cpu detector enabled,
+        Then _enqueue_anomaly is called with a total_cpu_ceiling event.
+        """
+        client = _make_client(pid=501)
+        client.anomaly_config = AnomalyConfig(
+            rss=None,
+            cpu=None,
+            fds=None,
+            threads=None,
+            watchdog=None,
+            total_rss=None,
+            total_cpu=CpuAnomalyConfig(max_percent=80.0, spike_ratio=None, drop_ratio=None),
+        )
+        for _ in range(60):
+            client.vitals_history.append(
+                VitalsSnapshot(
+                    sampled_at=time.time(),
+                    rss_bytes=100 * 1024 * 1024,
+                    cpu_percent=5.0,
+                    threads=4,
+                    fds=20,
+                    total_rss_bytes=100 * 1024 * 1024,
+                    total_cpu_percent=5.0,
+                    children_count=0,
+                )
+            )
+
+        mock_proc = MagicMock()
+        mock_proc.create_time.return_value = 6.0
+        mock_proc.memory_info.return_value.rss = 100 * 1024 * 1024
+        mock_proc.cpu_percent.return_value = 95.0
+        mock_proc.num_threads.return_value = 4
+        mock_proc.num_fds.return_value = 20
+        mock_proc.children.return_value = []
+
+        clients = {501: client}
+        enqueue_fn = MagicMock()
+        workflow = VitalsSamplerWorkflow(_enqueue_anomaly=enqueue_fn, _sampler=PsutilVitalsSampler())
+        mock_ps = _mock_psutil_module()
+        mock_ps.Process.return_value = mock_proc
+
+        with patch(_PATCH_TARGET, mock_ps):
+            workflow.run_sampling_tick(clients, now=time.time())
+
+        assert enqueue_fn.call_count >= 1
+        event = enqueue_fn.call_args_list[0][0][0]
+        assert event["kind"] == "anomaly"
+        assert event["pid"] == 501
+        assert event["payload"]["anomaly_type"].startswith("total_cpu_")

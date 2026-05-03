@@ -240,6 +240,8 @@ _DETECTOR_FIELDS: tuple[str, ...] = (
     "fds",
     "threads",
     "watchdog",
+    "total_rss",
+    "total_cpu",
 )
 
 _FIELD_TO_CLASS: dict[str, type] = {
@@ -248,6 +250,8 @@ _FIELD_TO_CLASS: dict[str, type] = {
     "fds": FdAnomalyConfig,
     "threads": ThreadAnomalyConfig,
     "watchdog": WatchdogConfig,
+    "total_rss": RssAnomalyConfig,
+    "total_cpu": CpuAnomalyConfig,
 }
 
 
@@ -266,6 +270,8 @@ class AnomalyConfig:
     fds: FdAnomalyConfig | None = field(default_factory=FdAnomalyConfig)
     threads: ThreadAnomalyConfig | None = field(default_factory=ThreadAnomalyConfig)
     watchdog: WatchdogConfig | None = field(default_factory=WatchdogConfig)
+    total_rss: RssAnomalyConfig | None = None
+    total_cpu: CpuAnomalyConfig | None = None
 
     @classmethod
     def defaults(cls) -> "AnomalyConfig":
@@ -281,6 +287,8 @@ class AnomalyConfig:
             fds=None,
             threads=None,
             watchdog=None,
+            total_rss=None,
+            total_cpu=None,
         )
 
     @classmethod
@@ -300,7 +308,15 @@ class AnomalyConfig:
         def _build(field_name: str) -> object:
             config_cls = _FIELD_TO_CLASS[field_name]
             if field_name not in data:
-                return config_cls()  # default
+                # Use the dataclass field default (factory for legacy detectors, None for total_*)
+                for f in dataclasses.fields(AnomalyConfig):
+                    if f.name == field_name:
+                        if f.default is not dataclasses.MISSING:
+                            return f.default
+                        if f.default_factory is not dataclasses.MISSING:
+                            return f.default_factory()
+                        break
+                return config_cls()  # fallback
             value = data[field_name]
             if value is None:
                 return None
@@ -317,6 +333,8 @@ class AnomalyConfig:
             fds=_build("fds"),
             threads=_build("threads"),
             watchdog=_build("watchdog"),
+            total_rss=_build("total_rss"),
+            total_cpu=_build("total_cpu"),
         )
 
     def resolve(self) -> dict:
@@ -340,7 +358,7 @@ class AnomalyConfig:
         Used by the sidecar to size the per-client vitals history deque.
         """
         max_sec = 300  # minimum 5 minutes
-        for field_name in ("rss", "cpu", "fds", "threads"):
+        for field_name in ("rss", "cpu", "fds", "threads", "total_rss", "total_cpu"):
             cfg = getattr(self, field_name)
             if cfg is not None:
                 max_sec = max(max_sec, cfg.baseline_duration_sec)

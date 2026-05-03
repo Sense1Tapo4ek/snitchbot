@@ -24,6 +24,9 @@ def _make_session(started_at: float = 1_000_000.0, pid: int = 12345) -> MagicMoc
     s.started_at = started_at
     s.pid = pid
     s.dispatch_degraded = False
+    s.app_total_rss_bytes = 0
+    s.app_total_cpu_percent = 0.0
+    s.app_children_count = 0
     return s
 
 

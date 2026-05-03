@@ -6,10 +6,10 @@ order: 7
 kind: class
 since: "0.1.0"
 watermark: 見
-summary: "Top-level container bundling the five anomaly detectors passed to init(anomaly=…)."
+summary: "Top-level container bundling the seven anomaly detectors passed to init(anomaly=…)."
 ---
 
-Frozen dataclass that groups the five detectors snitchbot runs against per-process vitals. Every field defaults to its spec-default instance — passing `AnomalyConfig()` is the same as passing nothing. Set a slot to `None` to disable **that one** detector; use [`AnomalyConfig.all_disabled()`](#fields) to turn everything off. `init()` accepts `AnomalyConfig`, `True` (defaults), `False` (all off) or `None` (defaults) in its `anomaly` argument.
+Frozen dataclass that groups the seven detectors snitchbot runs against per-process vitals (own metrics) and aggregate vitals (process + recursive children). Every field defaults to its spec-default instance — passing `AnomalyConfig()` is the same as passing nothing. Set a slot to `None` to disable **that one** detector; use [`AnomalyConfig.all_disabled()`](#fields) to turn everything off. `init()` accepts `AnomalyConfig`, `True` (defaults), `False` (all off) or `None` (defaults) in its `anomaly` argument.
 
 Defaults match the source — read them verbatim below.
 
@@ -17,11 +17,13 @@ Defaults match the source — read them verbatim below.
 
 | Name | Type | Description | Default |
 |---|---|---|---|
-| `rss` | [`RssAnomalyConfig`](./rss-anomaly-config) `\| None` | Memory detector (ceiling / spike / drop). | `RssAnomalyConfig()` |
-| `cpu` | [`CpuAnomalyConfig`](./cpu-anomaly-config) `\| None` | CPU% detector. | `CpuAnomalyConfig()` |
+| `rss` | [`RssAnomalyConfig`](./rss-anomaly-config) `\| None` | Memory detector (own process only). | `RssAnomalyConfig()` |
+| `cpu` | [`CpuAnomalyConfig`](./cpu-anomaly-config) `\| None` | CPU% detector (own process only). | `CpuAnomalyConfig()` |
 | `fds` | [`FdAnomalyConfig`](./fd-anomaly-config) `\| None` | File-descriptor detector. | `FdAnomalyConfig()` |
 | `threads` | [`ThreadAnomalyConfig`](./thread-anomaly-config) `\| None` | Thread-count detector. | `ThreadAnomalyConfig()` |
 | `watchdog` | [`WatchdogConfig`](./watchdog-config) `\| None` | Asyncio event-loop watchdog. | `WatchdogConfig()` |
+| `total_rss` | [`RssAnomalyConfig`](./rss-anomaly-config) `\| None` | Aggregate memory detector (process + all children). | `None` (disabled) |
+| `total_cpu` | [`CpuAnomalyConfig`](./cpu-anomaly-config) `\| None` | Aggregate CPU% detector (process + all children). | `None` (disabled) |
 
 Class methods:
 
@@ -72,3 +74,4 @@ Details
 
 - [`RssAnomalyConfig`](./rss-anomaly-config), [`CpuAnomalyConfig`](./cpu-anomaly-config), [`FdAnomalyConfig`](./fd-anomaly-config), [`ThreadAnomalyConfig`](./thread-anomaly-config), [`WatchdogConfig`](./watchdog-config)
 - [Guide: configuring anomalies](../guide/configuring-anomalies)
+- [`RssAnomalyConfig`](./rss-anomaly-config), [`CpuAnomalyConfig`](./cpu-anomaly-config) — also used for aggregate detectors

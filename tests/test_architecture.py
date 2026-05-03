@@ -41,12 +41,12 @@ def _contains_pattern(path: Path, *patterns: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def test_anomaly_config_has_exactly_5_fields() -> None:
-    """AnomalyConfig must have exactly 5 fields: memory, cpu, fds, threads, watchdog."""
+def test_anomaly_config_has_exactly_7_fields() -> None:
+    """AnomalyConfig must have exactly 7 fields: rss, cpu, fds, threads, watchdog, total_rss, total_cpu."""
     from snitchbot.shared.domain.anomaly_config_vo import AnomalyConfig
 
     field_names = {f.name for f in dataclasses.fields(AnomalyConfig)}
-    expected = {"rss", "cpu", "fds", "threads", "watchdog"}
+    expected = {"rss", "cpu", "fds", "threads", "watchdog", "total_rss", "total_cpu"}
 
     assert field_names == expected, (
         f"AnomalyConfig fields mismatch.\n"
@@ -109,3 +109,28 @@ def test_anomaly_detection_has_v2_detector_services() -> None:
     assert required_v2.issubset(service_files), (
         f"Missing v2 service files: {required_v2 - service_files}"
     )
+
+
+def test_vitals_snapshot_has_total_fields() -> None:
+    """VitalsSnapshot must have total_rss_bytes, total_cpu_percent, children_count."""
+    from snitchbot.shared.domain.vitals_snapshot_vo import VitalsSnapshot
+
+    field_names = {f.name for f in dataclasses.fields(VitalsSnapshot)}
+    expected = {
+        "sampled_at", "rss_bytes", "cpu_percent", "threads", "fds",
+        "total_rss_bytes", "total_cpu_percent", "children_count",
+    }
+    assert field_names == expected, (
+        f"VitalsSnapshot fields mismatch.\n"
+        f"  Expected : {sorted(expected)}\n"
+        f"  Actual   : {sorted(field_names)}"
+    )
+
+
+def test_anomaly_config_has_total_detectors() -> None:
+    """AnomalyConfig must have total_rss and total_cpu fields."""
+    from snitchbot.shared.domain.anomaly_config_vo import AnomalyConfig
+
+    field_names = {f.name for f in dataclasses.fields(AnomalyConfig)}
+    assert "total_rss" in field_names, "Missing total_rss field in AnomalyConfig"
+    assert "total_cpu" in field_names, "Missing total_cpu field in AnomalyConfig"

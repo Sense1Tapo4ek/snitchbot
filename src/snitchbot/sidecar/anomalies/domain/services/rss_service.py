@@ -13,26 +13,25 @@ from snitchbot.shared.domain.anomaly_config_vo import RssAnomalyConfig
 from .detection_modes_service import check_ceiling, check_drop, check_spike
 from .window_avg_service import compute_window_averages
 
-__all__ = ["check_rss"]
+__all__ = ["check_rss", "check_total_rss"]
 
 _MB = 1024 * 1024
 
 
-def check_rss(
+def _check_rss_impl(
     history: deque,
     config: RssAnomalyConfig,
-    sample_interval_sec: int = 5,
+    sample_interval_sec: int,
+    extract_metric,
+    prefix: str,
 ) -> list[dict]:
-    """Check RSS anomalies across all 3 modes.
-
-    Returns a list of 0–3 anomaly result dicts (ceiling, spike, drop).
-    """
+    """Shared implementation for rss and total_rss anomaly detection."""
     wa = compute_window_averages(
         history,
         duration_sec=config.duration_sec,
         baseline_duration_sec=config.baseline_duration_sec,
         sample_interval_sec=sample_interval_sec,
-        extract_metric=lambda s: s.rss_bytes,
+        extract_metric=extract_metric,
     )
     if wa is None:
         return []
@@ -46,7 +45,7 @@ def check_rss(
     ceiling = check_ceiling(current=current_mb, max_value=config.max_mb)
     if ceiling is not None:
         results.append(_build_result(
-            anomaly_type="rss_ceiling",
+            anomaly_type=f"{prefix}_ceiling",
             severity=ceiling["severity"],
             current=wa.current,
             baseline=wa.baseline_avg,
@@ -69,7 +68,7 @@ def check_rss(
     if spike is not None:
         pct = int((short_mb / baseline_mb - 1) * 100) if baseline_mb > 0 else 0
         results.append(_build_result(
-            anomaly_type="rss_spike",
+            anomaly_type=f"{prefix}_spike",
             severity=spike["severity"],
             current=wa.current,
             baseline=wa.baseline_avg,
@@ -93,7 +92,7 @@ def check_rss(
     )
     if drop is not None:
         results.append(_build_result(
-            anomaly_type="rss_drop",
+            anomaly_type=f"{prefix}_drop",
             severity=drop["severity"],
             current=wa.current,
             baseline=wa.baseline_avg,
@@ -108,6 +107,42 @@ def check_rss(
         ))
 
     return results
+
+
+def check_rss(
+    history: deque,
+    config: RssAnomalyConfig,
+    sample_interval_sec: int = 5,
+) -> list[dict]:
+    """Check RSS anomalies across all 3 modes.
+
+    Returns a list of 0–3 anomaly result dicts (ceiling, spike, drop).
+    """
+    return _check_rss_impl(
+        history,
+        config,
+        sample_interval_sec,
+        extract_metric=lambda s: s.rss_bytes,
+        prefix="rss",
+    )
+
+
+def check_total_rss(
+    history: deque,
+    config: RssAnomalyConfig,
+    sample_interval_sec: int = 5,
+) -> list[dict]:
+    """Check total RSS (process + children) anomalies across all 3 modes.
+
+    Returns a list of 0–3 anomaly result dicts (ceiling, spike, drop).
+    """
+    return _check_rss_impl(
+        history,
+        config,
+        sample_interval_sec,
+        extract_metric=lambda s: s.total_rss_bytes,
+        prefix="total_rss",
+    )
 
 
 def _build_result(

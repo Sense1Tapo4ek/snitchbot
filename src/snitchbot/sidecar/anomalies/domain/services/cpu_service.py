@@ -13,24 +13,23 @@ from snitchbot.shared.domain.anomaly_config_vo import CpuAnomalyConfig
 from .detection_modes_service import check_ceiling, check_drop, check_spike
 from .window_avg_service import compute_window_averages
 
-__all__ = ["check_cpu"]
+__all__ = ["check_cpu", "check_total_cpu"]
 
 
-def check_cpu(
+def _check_cpu_impl(
     history: deque,
     config: CpuAnomalyConfig,
-    sample_interval_sec: int = 5,
+    sample_interval_sec: int,
+    extract_metric,
+    prefix: str,
 ) -> list[dict]:
-    """Check CPU anomalies across all 3 modes.
-
-    Returns a list of 0–3 anomaly result dicts (ceiling, spike, drop).
-    """
+    """Shared implementation for cpu and total_cpu anomaly detection."""
     wa = compute_window_averages(
         history,
         duration_sec=config.duration_sec,
         baseline_duration_sec=config.baseline_duration_sec,
         sample_interval_sec=sample_interval_sec,
-        extract_metric=lambda s: s.cpu_percent,
+        extract_metric=extract_metric,
     )
     if wa is None:
         return []
@@ -41,7 +40,7 @@ def check_cpu(
     ceiling = check_ceiling(current=wa.current, max_value=config.max_percent)
     if ceiling is not None:
         results.append(_build_result(
-            anomaly_type="cpu_ceiling",
+            anomaly_type=f"{prefix}_ceiling",
             severity=ceiling["severity"],
             current=wa.current,
             baseline=wa.baseline_avg,
@@ -62,7 +61,7 @@ def check_cpu(
     )
     if spike is not None:
         results.append(_build_result(
-            anomaly_type="cpu_spike",
+            anomaly_type=f"{prefix}_spike",
             severity=spike["severity"],
             current=wa.current,
             baseline=wa.baseline_avg,
@@ -84,7 +83,7 @@ def check_cpu(
     )
     if drop is not None:
         results.append(_build_result(
-            anomaly_type="cpu_drop",
+            anomaly_type=f"{prefix}_drop",
             severity=drop["severity"],
             current=wa.current,
             baseline=wa.baseline_avg,
@@ -99,6 +98,42 @@ def check_cpu(
         ))
 
     return results
+
+
+def check_cpu(
+    history: deque,
+    config: CpuAnomalyConfig,
+    sample_interval_sec: int = 5,
+) -> list[dict]:
+    """Check CPU anomalies across all 3 modes.
+
+    Returns a list of 0–3 anomaly result dicts (ceiling, spike, drop).
+    """
+    return _check_cpu_impl(
+        history,
+        config,
+        sample_interval_sec,
+        extract_metric=lambda s: s.cpu_percent,
+        prefix="cpu",
+    )
+
+
+def check_total_cpu(
+    history: deque,
+    config: CpuAnomalyConfig,
+    sample_interval_sec: int = 5,
+) -> list[dict]:
+    """Check total CPU (process + children) anomalies across all 3 modes.
+
+    Returns a list of 0–3 anomaly result dicts (ceiling, spike, drop).
+    """
+    return _check_cpu_impl(
+        history,
+        config,
+        sample_interval_sec,
+        extract_metric=lambda s: s.total_cpu_percent,
+        prefix="total_cpu",
+    )
 
 
 def _build_result(

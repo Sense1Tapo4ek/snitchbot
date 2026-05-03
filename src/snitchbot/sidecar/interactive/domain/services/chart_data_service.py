@@ -17,6 +17,8 @@ _METRIC_EXTRACTORS = {
     "mem": lambda s: s.rss_bytes / (1024 * 1024),  # -> MB
     "fds": lambda s: s.fds,
     "threads": lambda s: s.threads,
+    "total_mem": lambda s: s.total_rss_bytes / (1024 * 1024),  # -> MB
+    "total_cpu": lambda s: s.total_cpu_percent,
 }
 
 VALID_METRICS = frozenset(_METRIC_EXTRACTORS.keys())
@@ -122,7 +124,9 @@ def export_vitals_csv(
 
     mono_offset = mono_to_wall_offset
 
-    lines = ["timestamp,rss_mb,cpu_percent,threads,fds"]
+    lines = [
+        "timestamp,rss_mb,total_rss_mb,cpu_percent,total_cpu_percent,threads,fds,children_count"
+    ]
     cutoff = now - window_sec
 
     for snap in history:
@@ -133,10 +137,12 @@ def export_vitals_csv(
             wall_ts, tz=timezone.utc,
         ).strftime("%Y-%m-%d %H:%M:%S")
         rss_mb = snap.rss_bytes / (1024 * 1024)
+        total_rss_mb = snap.total_rss_bytes / (1024 * 1024)
         fds_str = str(snap.fds) if snap.fds is not None else ""
         lines.append(
-            f"{ts_str},{rss_mb:.1f},{snap.cpu_percent:.1f},"
-            f"{snap.threads},{fds_str}"
+            f"{ts_str},{rss_mb:.1f},{total_rss_mb:.1f},"
+            f"{snap.cpu_percent:.1f},{snap.total_cpu_percent:.1f},"
+            f"{snap.threads},{fds_str},{snap.children_count}"
         )
 
     return "\n".join(lines) + "\n"
