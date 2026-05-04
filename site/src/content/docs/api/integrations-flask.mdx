@@ -1,0 +1,47 @@
+---
+title: integrations.flask.init_app
+symbol: integrations.flask.init_app
+section: api
+order: 20
+kind: function
+since: "1.2.0"
+watermark: 信
+summary: "Initialize snitchbot once per Flask worker via a before_request guard."
+---
+
+Use from a Flask application factory. Registers a `before_request`
+callback that calls `snitchbot.init()` exactly once per worker process
+on the first incoming request. Subsequent requests are no-ops.
+
+## Signature
+
+```python
+def init_app(app, *, service: str, **init_kwargs: Any) -> None
+```
+
+## Parameters
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `app` | `flask.Flask` | The Flask application returned by your factory. | *required* |
+| `service` | `str` | Forwarded to `snitchbot.init` as the first positional argument. | *required* |
+| `**init_kwargs` | `Any` | Forwarded verbatim to `snitchbot.init` (e.g. `role="web"`, `live_dashboard=False`). | — |
+
+## Example
+
+```python
+from flask import Flask
+from snitchbot.integrations.flask import init_app, install
+
+
+def create_app() -> Flask:
+    app = Flask(__name__)
+    init_app(app, service="orders-api", role="web")
+    install(app)
+    return app
+```
+
+## Related
+
+- [`init()`](./init) — every kwarg here forwards to `init()`.
+- [Guide: Flask integration](../guide/flask).

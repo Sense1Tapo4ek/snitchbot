@@ -24,11 +24,17 @@ def main() -> int:
     errors: list[str] = []
     for mdx in sorted(api_dir.glob("*.mdx")):
         text = mdx.read_text(encoding="utf-8")
-        m = re.search(r"^symbol:\s*(\w+)\s*$", text, re.M)
+        m = re.search(r"^symbol:\s*([\w.]+)\s*$", text, re.M)
         if not m:
             errors.append(f"{mdx.name}: missing `symbol:` in frontmatter")
             continue
-        documented.add(m.group(1))
+        symbol = m.group(1)
+        # Dotted symbols document submodule helpers (e.g. integrations.flask.init_app)
+        # which are not re-exported from `snitchbot.__all__`. Skip coverage checks
+        # for these; they are validated by their own frontmatter.
+        if "." in symbol:
+            continue
+        documented.add(symbol)
 
     missing = exported - documented
     extra = documented - exported

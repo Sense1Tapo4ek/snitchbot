@@ -1,0 +1,43 @@
+---
+title: integrations.celery.install
+symbol: integrations.celery.install
+section: api
+order: 21
+kind: function
+since: "1.2.0"
+watermark: 信
+summary: "Initialize snitchbot in every Celery prefork worker via worker_process_init."
+---
+
+Subscribes to Celery's `worker_process_init` signal so every prefork
+worker calls `snitchbot.init()` exactly once after fork. Each worker
+registers as a distinct client in the live dashboard.
+
+## Signature
+
+```python
+def install(celery_app, *, service: str, **init_kwargs: Any) -> None
+```
+
+## Parameters
+
+| Name | Type | Description | Default |
+|---|---|---|---|
+| `celery_app` | `celery.Celery` | Your Celery application instance. The argument is currently unused (the helper subscribes to a global Celery signal); it is accepted for forward compatibility. | *required* |
+| `service` | `str` | Forwarded to `snitchbot.init` as the first positional argument. | *required* |
+| `**init_kwargs` | `Any` | Forwarded verbatim to `snitchbot.init`. `role` defaults to `"worker"`; pass an explicit `role` to override. | — |
+
+## Example
+
+```python
+from celery import Celery
+from snitchbot.integrations.celery import install
+
+app = Celery("tasks", broker="redis://...")
+install(app, service="my-worker")
+```
+
+## Related
+
+- [`init()`](./init) — every kwarg here forwards to `init()`.
+- [Guide: Celery integration](../guide/celery).
