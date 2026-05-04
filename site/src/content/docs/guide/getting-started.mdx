@@ -74,6 +74,13 @@ with snitchbot.request_context(trace_id="req-abc", user_id="42"):
     snitchbot.notify("checkout started")
 ```
 
+> **Running under uvicorn / gunicorn / Celery?** Module-level `init()`
+> works through a post-fork hook, but the recommended path is to call
+> `init()` from your framework's lifecycle hook so every worker is
+> guaranteed to register. See the per-framework guides:
+> [FastAPI](./fastapi), [Litestar](./litestar), [Flask](./flask),
+> [Celery](./celery).
+
 Run the file. The startup lifecycle event lands in Telegram within a second:
 
 ```text
@@ -123,7 +130,7 @@ snitchbot picks one of two operating modes by inspecting the chat at startup. No
 | `/status` scope    | global | scoped to current topic; global in General |
 | Setup overhead     | none | enable Topics + give bot **Manage Topics** right |
 
-Want one bot to host alerts for many services in clean per-service threads? See **[Forum mode](./forum-mode)**.
+Want one bot to host alerts for many services in clean per-service threads? See **[Per-service topics](./forum-mode)**.
 
 ## Troubleshooting
 
