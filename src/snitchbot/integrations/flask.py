@@ -16,13 +16,48 @@ What install() does:
     2. after_request: injects X-Snitchbot-Trace-Id response header.
     3. On 5xx crash: captures query params + safe headers, sends alert.
 """
+import threading
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from flask import Flask
 
-__all__ = ["install"]
+__all__ = ["init_app", "install"]
+
+_init_lock = threading.Lock()
+_inited = False
+
+
+def init_app(app: "Flask", *, service: str, **init_kwargs: Any) -> None:
+    """Initialize snitchbot once per worker process on first request.
+
+    Use this from a Flask application factory so every gunicorn / uwsgi
+    worker registers separately (each prefork worker has its own
+    module-level ``_inited`` flag because globals are per-process).
+
+    Example::
+
+        from snitchbot.integrations.flask import init_app, install
+
+        def create_app():
+            app = Flask(__name__)
+            init_app(app, service="orders-api", role="web")
+            install(app)
+            return app
+    """
+    import snitchbot
+
+    @app.before_request
+    def _ensure_init() -> None:
+        global _inited
+        if _inited:
+            return
+        with _init_lock:
+            if _inited:
+                return
+            snitchbot.init(service, **init_kwargs)
+            _inited = True
 
 _SENSITIVE_HEADERS = frozenset({
     "authorization", "cookie", "set-cookie",
