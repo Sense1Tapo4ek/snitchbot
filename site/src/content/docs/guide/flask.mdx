@@ -30,7 +30,7 @@ Make sure your `.env` has `SNITCHBOT_TOKEN` and `SNITCHBOT_CHAT_ID` set (see [Ge
 
 ## Step 02 — step :02 · wire it up
 
-Call `snitchbot.init()` before constructing the `Flask()` instance. Then call `install(app)` exactly once. Internally the call does three things: registers a `before_request` that opens a `request_context` and builds a `trace_id` of the form `req-{uuid4hex[:8]}`; registers an `after_request` that writes the trace id onto the response as `X-Snitchbot-Trace-Id`; and registers a handler for `Exception` that forwards 5xx failures through `notify(source="exception", severity="critical")` with the current request's `query_params` and `safe_headers` attached. Sensitive header keys — `authorization`, `cookie`, `proxy-authorization`, `x-api-key`, `x-auth-token` — are redacted before they leave the process.
+Use a Flask application factory and call `init_app(app, service=...)` so every gunicorn / uwsgi prefork worker registers separately. Then call `install(app)` exactly once. Internally `install()` registers a `before_request` that opens a `request_context` and builds a `trace_id` of the form `req-{uuid4hex[:8]}`; an `after_request` that writes the trace id onto the response as `X-Snitchbot-Trace-Id`; and a handler for `Exception` that forwards 5xx failures through `notify(source="exception", severity="critical")` with the current request's `query_params` and `safe_headers` attached. Sensitive header keys — `authorization`, `cookie`, `proxy-authorization`, `x-api-key`, `x-auth-token` — are redacted before they leave the process.
 
 ```python
 # app.py
@@ -38,33 +38,42 @@ import logging
 from flask import Flask
 
 import snitchbot
-from snitchbot.integrations.flask import install
-
-app = Flask(__name__)
-
-snitchbot.init("flask-demo")
-snitchbot.setup_logging()  # optional: WARNING+ logs -> Telegram
-install(app)
-
-logger = logging.getLogger("flask-demo")
+from snitchbot.integrations.flask import init_app, install
 
 
-@app.route("/")
-def root() -> dict:
-    return {"status": "ok"}
+def create_app() -> Flask:
+    app = Flask(__name__)
+    init_app(app, service="orders-api", role="web")
+    snitchbot.setup_logging()  # optional: WARNING+ logs -> Telegram
+    install(app)
+
+    logger = logging.getLogger("orders-api")
+
+    @app.route("/")
+    def root() -> dict:
+        return {"status": "ok"}
+
+    @app.route("/notify")
+    def notify_example() -> dict:
+        # inherits http_method, http_path, client_ip, trace_id from the request
+        snitchbot.notify("Flask health check", severity="warning")
+        return {"sent": True}
+
+    @app.route("/crash")
+    def crash_endpoint() -> dict:
+        raise ValueError("Flask crash!")
+
+    return app
 
 
-@app.route("/notify")
-def notify_example() -> dict:
-    # inherits http_method, http_path, client_ip, trace_id from the request
-    snitchbot.notify("Flask health check", severity="warning")
-    return {"sent": True}
-
-
-@app.route("/crash")
-def crash_endpoint() -> dict:
-    raise ValueError("Flask crash!")
+app = create_app()
 ```
+
+> **Why `init_app`?** gunicorn / uwsgi prefork master imports the app
+> module once, then forks N worker processes. `init_app` registers a
+> `before_request` guard that calls `snitchbot.init()` exactly once
+> per worker on the first incoming request — every worker shows up as
+> its own row in the live dashboard.
 
 Run it:
 
@@ -127,7 +136,7 @@ A: Each worker process calls `snitchbot.init()` independently via the post-fork 
 **Q: How do I correlate a browser error with the Telegram alert?**
 A: The response always carries `X-Snitchbot-Trace-Id`. Log it on the client or include it in your error-reporting pipeline — the fingerprint plus the trace id is enough to pinpoint the exact request that tripped the alert, even when dedup has folded hundreds of identical 5xx into a single message.
 
-> Running multiple Flask services through one bot? Point them at a forum supergroup and snitchbot will give each service its own topic. See [Forum mode](./forum-mode).
+> Running multiple Flask services through one bot? Point them at a forum supergroup with `can_manage_topics` and snitchbot will give each service its own topic automatically. See [Per-service topics](./forum-mode).
 
 ## What's next
 
