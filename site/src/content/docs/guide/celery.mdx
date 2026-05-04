@@ -1,0 +1,72 @@
+---
+title: Celery integration
+section: guide
+order: 8
+watermark: 信
+read_time: "4 min"
+summary: "Initialize snitchbot in every Celery prefork worker after fork."
+---
+
+**guide · 4 min read**
+
+# Celery — <span class="accent">one bot, every worker</span>
+
+Celery's prefork pool spawns N worker processes after master startup.
+The post-fork hook used by module-level `snitchbot.init()` is fragile
+in this model; `snitchbot.integrations.celery.install` subscribes to
+Celery's own `worker_process_init` signal instead, so every worker
+registers as its own client in the live dashboard.
+
+## Quickstart
+
+```python
+from celery import Celery
+from snitchbot.integrations.celery import install
+
+app = Celery("tasks", broker="redis://...")
+install(app, service="my-worker")
+
+@app.task
+def add(x, y):
+    return x + y
+```
+
+Run with `celery -A tasks worker -c 4`. The dashboard shows four
+distinct rows — one per worker process — each with its own RSS, CPU,
+threads and fds.
+
+## Beat (scheduler)
+
+Beat runs in its own process. Pass `role="beat"` so its lifecycle
+events stand out from worker events:
+
+```python
+from snitchbot.integrations.celery import install
+
+install(app, service="my-worker")  # workers
+install(app, service="my-worker", role="beat")  # beat
+```
+
+(One `install` call per role; both are no-ops in the wrong process.)
+
+## Troubleshooting
+
+<details>
+<summary>Q: I see only one row in the dashboard, but I have N workers.</summary>
+<p>Check that <code>install</code> runs at <em>module load</em> time — the signal
+must be connected before workers are forked. If you call <code>install</code> inside
+a function that only runs in the master (e.g. a CLI entrypoint), the signal is
+not connected in workers and only the master registers.</p>
+</details>
+
+<details>
+<summary>Q: Does this work with the eventlet / gevent pool?</summary>
+<p>Yes — those pools are single-process; one row in the dashboard is correct.</p>
+</details>
+
+## What's next
+
+- [`init()`](../api/init) — full kwargs reference; everything you can
+  pass to `init()` you can pass as kwargs to `install()`.
+- [Per-service topics](./forum-mode) — combine Celery workers and
+  HTTP services in one supergroup.
