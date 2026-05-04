@@ -30,20 +30,27 @@ Make sure your `.env` has `SNITCHBOT_TOKEN` and `SNITCHBOT_CHAT_ID` set (see [Ge
 
 ## Step 02 — step :02 · wire it up
 
-Call `snitchbot.init()` before constructing the `FastAPI()` instance. Then call `install(app)` exactly once.
+Call `snitchbot.init()` from a `lifespan` context manager so every uvicorn / hypercorn worker registers separately. Then call `install(app)` exactly once.
 
 ```python
 # main.py
 import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 import snitchbot
 from snitchbot.integrations.fastapi import install
 
-snitchbot.init("fastapi-demo")
-snitchbot.setup_logging()  # optional: forward WARNING+ logs to Telegram
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app):
+    snitchbot.init("orders-api", role="web")
+    snitchbot.setup_logging()  # optional: forward WARNING+ logs to Telegram
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 install(app)
 
 logger = logging.getLogger("fastapi-demo")
@@ -77,6 +84,13 @@ async def disk_check() -> dict:
     logger.warning("Disk space running low", extra={"free_gb": 2.5})
     return {"status": "warning"}
 ```
+
+> **Why inside `lifespan`?** Each uvicorn / hypercorn worker runs the
+> lifespan after the post-fork stage, so every worker registers as its
+> own client in the live dashboard. Calling `init()` at module level
+> works too via the post-fork hook, but the lifespan path is reliable
+> on every platform (including macOS where Python's `spawn` start
+> method bypasses fork hooks).
 
 > 💡 **Tip:** call `install(app)` _after_ your own middlewares. The snitchbot middleware wraps the whole stack, so it sees both inbound headers and outbound responses regardless of ordering.
 
@@ -158,7 +172,7 @@ A: Not via snitchbot config. Exclude routes with standard middleware gating: sub
 **Q: My handler catches its own exception and returns 500 — does snitchbot still see it?**
 A: No, not via the exception path. Returning `JSONResponse(status_code=500, ...)` is a normal response from Starlette's perspective. Call `snitchbot.notify(..., severity="critical", exc_info=exc)` inside the handler if you want the alert.
 
-> Running multiple FastAPI services through one bot? Point them at a forum supergroup and snitchbot will give each service its own topic. See [Forum mode](./forum-mode).
+> Running multiple FastAPI services through one bot? Point them at a forum supergroup with `can_manage_topics` and snitchbot will give each service its own topic automatically. See [Per-service topics](./forum-mode).
 
 ## What's next
 
