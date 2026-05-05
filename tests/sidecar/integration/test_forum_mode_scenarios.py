@@ -108,7 +108,6 @@ def _build_facade(
         _forum_mode=forum_mode,
         _registry=registry,
         _resolve_topic_uc=resolve_uc,
-        _color_overrides={},
     )
 
 

@@ -72,7 +72,7 @@ Current status: **S-DDD migration complete.** All 8 bounded contexts extracted, 
 - **Stats namespaces**: `_client_stats` (host) and `_sidecar_stats` (sidecar) are disjoint — no sharing
 - **Config hash**: `blake2b(f"{token}\0{chat_id}", digest_size=6).hexdigest()` — single source in `shared/domain/services/config_hash_service.py`
 - **DI**: manual wiring in `root/entrypoints/sidecar.py`; client side is singleton-module; no DI framework
-- **Forum mode (F1–F8)**: when `chat_id` resolves to a forum supergroup AND the bot has `can_manage_topics`, the sidecar creates one topic per `service` and routes alerts/commands per-thread. Otherwise simple mode (current behaviour). Detection is one `getChat` + `getMe` + `getChatMember` call at sidecar startup. State persisted in `state_dir/topics-<config_hash>.json` (atomic rename, mirrors mute persistence). New `init()` kwargs: `forum: bool | "auto" = "auto"`, `topic_color: int | None = None`. Mute entries gain optional `service` for per-topic scoping.
+- **Per-service topics (F1–F8)**: when `chat_id` resolves to a forum supergroup AND the bot has `can_manage_topics`, the sidecar creates one topic per `service` and routes alerts/commands per-thread. Otherwise every message goes to the chat without a thread id. Detection is one `getChat` + `getMe` + `getChatMember` call at sidecar startup — there is no manual switch in `init()`. State persisted in `state_dir/topics-<config_hash>.json` (atomic rename, mirrors mute persistence). Topic colours are auto-derived deterministically from the service name. Mute entries gain optional `service` for per-topic scoping.
 - **Bot-message separator (R1)**: every structured outgoing Telegram message (alerts, lifecycle, `/status`, `/last`, `/test`, `/chart`, `/export`, mute/unmute confirmations, live dashboard, trace, rate-limit) inserts exactly one `━━━━━━━━━━━━━━━━━━` (18 × U+2501) line between the header and the first content block. Single source of truth: `SEPARATOR` in `src/snitchbot/shared/constants.py`. Any new renderer MUST import from there — never inline the literal.
 
 ## S-DDD Layer Rules (apply strictly)
@@ -153,13 +153,13 @@ Keep updated as phases complete:
 
 | ID | Statement |
 |---|---|
-| F1 | Mode decided once at sidecar startup. `forum=True` or `forum="auto"` + `getChat.is_forum=true` ⇒ forum mode. Anything else ⇒ simple mode. |
+| F1 | Capability decided once at sidecar startup via `getChat` + `getMe` + `getChatMember`. `getChat.is_forum=true` AND `can_manage_topics=true` ⇒ per-service topics active. Anything else ⇒ all messages go to the chat without a thread id. No manual switch is exposed. |
 | F2 | Topic mapping is `service: str -> message_thread_id: int`. Mapping is the truth; topic name is cosmetic. |
 | F3 | Topic creation is idempotent: cache lookup first, only call `createForumTopic` on miss, persist atomically before sending. |
 | F4 | Concurrent `register(service)` calls for same service produce exactly one `createForumTopic` API call (per-service `asyncio.Lock`). |
 | F5 | `Bad Request: message thread not found` invalidates cache entry and triggers exactly one recreate retry per send. |
-| F6 | Missing `can_manage_topics` ⇒ degrade to General topic + log one ERROR-level warning; never crash. |
-| F7 | Inbound commands inside a topic scope to the resolved service. Commands in General (or where `message_thread_id` is None/1) keep global semantics. |
+| F6 | Chat is a forum but bot lacks `can_manage_topics` ⇒ all messages go to the chat without a thread id; one INFO-level log line at startup; never crash. Same fallback if `getChat`/`getMe`/`getChatMember` fail (logged at WARNING). |
+| F7 | Inbound commands inside a topic scope to the resolved service, and the bot replies inside the same topic. Commands in General (or where `message_thread_id` is None/1) keep global semantics. |
 | F8 | Live message dashboards in forum mode are per-topic; pin failure is logged and skipped, never propagated. |
 
 ## Documentation sync (MANDATORY)

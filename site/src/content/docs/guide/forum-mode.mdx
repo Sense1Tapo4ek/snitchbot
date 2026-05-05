@@ -1,36 +1,42 @@
 ---
-title: Forum mode (one bot, many services)
+title: Per-service topics (one bot, many services)
 section: guide
 order: 7
 watermark: 結
-read_time: "6 min"
-summary: "Run one bot in a forum supergroup; snitchbot creates a topic per service automatically."
+read_time: "5 min"
+summary: "Point snitchbot at a forum supergroup; the sidecar creates a topic per service automatically."
 ---
 
-**guide · 6 min read**
+**guide · 5 min read**
 
-# Forum mode — <span class="accent">one bot, many services</span>
+# Per-service topics — <span class="accent">one bot, many services</span>
 
-Point snitchbot at a forum-enabled supergroup and it will create one topic
-per `service` you pass to `init()`. Each topic is fed only that service's
-events. You get clean separation without spinning up N bots.
+Point snitchbot at a forum-enabled supergroup and the sidecar creates one
+topic per `service` you pass to `init()`. Each topic is fed only that
+service's alerts; commands sent inside a topic scope to that service. You
+get clean separation without running N bots.
 
 | Works with | Needs | Since |
 |---|---|---|
 | Telegram supergroup with Topics enabled | `snitchbot` ≥ 0.2.0, bot is admin with **Manage Topics** | 0.2.0 |
 
-## Step 01 — step :00 · turn the group into a forum
+There is no manual switch. The sidecar checks the chat once at startup; if
+the chat is a forum **and** the bot has `can_manage_topics`, per-service
+topics are activated. Otherwise every message goes to the chat without a
+thread id.
 
-In Telegram, open **group settings -> Topics -> enable**. (Owner-only;
+## Step 01 — turn the group into a forum
+
+In Telegram, open **group settings → Topics → enable**. (Owner-only;
 irreversible while topics exist.) The "General" topic appears automatically.
 
-## Step 02 — step :01 · add the bot as admin with topic rights
+## Step 02 — add the bot as admin with topic rights
 
 Promote your bot to administrator and tick **Manage Topics**. Without that
-right snitchbot falls back to writing into General with a single warning at
-startup.
+right the sidecar logs a single info line at startup and writes everything
+to the chat without topics — nothing crashes.
 
-## Step 03 — step :02 · point services at the same chat_id
+## Step 03 — point services at the same `chat_id`
 
 ```python
 # orders-api
@@ -51,47 +57,26 @@ Three topics in one supergroup, each a clean stream of one service's alerts:
 
 ```text
 Topics
-├ 🟢 General         (sidecar lifecycle, system messages)
-├ 🟠 orders-api      (alerts only for orders-api)
-└ 🟣 billing-api     (alerts only for billing-api)
+├ 🟢 General         (system fallback)
+├ 🟠 orders-api      (alerts + lifecycle + dashboard for orders-api)
+└ 🟣 billing-api     (alerts + lifecycle + dashboard for billing-api)
 ```
+
+Topic colours are auto-derived deterministically from the service name
+against Telegram's 7-colour palette. They are stable across restarts.
 
 ## Per-topic commands
 
 `/status`, `/last`, `/chart`, `/mute`, `/export` sent **inside a topic**
-scope to that topic's service. The same command in General returns the
-global summary across all services.
-
-## Choosing the topic colour
-
-Auto-assigned deterministically from `service` against Telegram's 7-colour
-palette. Override per-service:
-
-```python
-snitchbot.init(
-    "payments",
-    token="...",
-    chat_id="-1001234567890",
-    topic_color=7322096,    # one of: 7322096, 16766590, 13338331,
-                            # 9367192, 16749490, 16478047, 7396918
-)
-```
-
-## Forcing simple mode
-
-Detection is automatic by default. To force simple mode (write into General
-without topics), pass `forum=False`:
-
-```python
-snitchbot.init("svc", token="...", chat_id="-100...", forum=False)
-```
+scope to that topic's service, and the bot replies in the same topic. The
+same command in General returns the global summary across all services.
 
 ## Troubleshooting
 
 <details>
-<summary>Q: I see one warning about lacking can_manage_topics — what now?</summary>
+<summary>Q: I see an info line about lacking can_manage_topics — what now?</summary>
 <p>Promote the bot to administrator in the group settings and tick <code>Manage Topics</code>.
-snitchbot auto-resumes forum behaviour at the next sidecar restart.</p>
+The sidecar picks the change up on the next restart.</p>
 </details>
 
 <details>
@@ -102,17 +87,17 @@ recreates the topic, and retries the send once.</p>
 
 <details>
 <summary>Q: Can I rename a topic?</summary>
-<p>Yes — snitchbot keys on <code>message_thread_id</code>, not on the topic name. Rename freely.</p>
+<p>Yes — the sidecar keys on <code>message_thread_id</code>, not on the topic name. Rename freely.</p>
 </details>
 
 <details>
-<summary>Q: Can I disable forum mode for one service while others use it?</summary>
-<p>No — the mode is per-bot, not per-service. To run two services in different modes,
-use two bots (two tokens, two chat_ids).</p>
+<summary>Q: Can I run different services with different routing?</summary>
+<p>Routing is per-chat, not per-service. To split services across separate streams, use
+separate chats (and separate bot tokens if you need separate command surfaces).</p>
 </details>
 
 ## What's next
 
-- [Getting started](./getting-started) — the simple-mode quickstart.
-- [`init()`](../api/init) — `forum` and `topic_color` parameters.
-- [Configuring anomalies](./configuring-anomalies) — works identically in both modes.
+- [Getting started](./getting-started) — quickstart that works in any chat.
+- [`init()`](../api/init) — public API reference.
+- [Configuring anomalies](./configuring-anomalies) — independent of routing.

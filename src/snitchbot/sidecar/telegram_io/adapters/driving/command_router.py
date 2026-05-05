@@ -75,6 +75,7 @@ class CommandRouter:
                 chat_id=self._chat_id,
                 text=rate_msg,
                 parse_mode="HTML",
+                message_thread_id=message_thread_id,
             )
             return
 
@@ -104,6 +105,7 @@ class CommandRouter:
                 parse_mode=reply.get("parse_mode", "HTML"),
                 reply_markup=reply.get("reply_markup"),
                 reply_to_message_id=reply.get("reply_to_message_id"),
+                message_thread_id=message_thread_id,
             )
         except Exception:
             logger.exception("command_router: error handling command %r", raw_cmd)

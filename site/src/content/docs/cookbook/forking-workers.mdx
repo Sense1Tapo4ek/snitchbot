@@ -1,0 +1,90 @@
+---
+title: Forking workers
+section: cookbook
+order: 6
+watermark: 方
+summary: "One sidecar shared across gunicorn, uvicorn, and Celery prefork workers — without double-spawning or losing the fork hook."
+---
+
+# Forking workers
+
+You run gunicorn with eight sync workers. Each worker is a `fork()` of the master. Without thinking about it, you would either spawn eight sidecars or have the children inherit a half-broken socket fd from the parent. Snitchbot is built to do neither.
+
+## How it actually works
+
+`init()` calls `os.register_at_fork(after_in_child=...)`. After every `fork()`, the child runs a hook that:
+
+1. Resets `_initialized` and the cached transport.
+2. Calls `_init_impl` again with the same `(service, token, chat_id, anomaly, …)`.
+3. Discovery resolves the same socket path (it's keyed on `service + token + chat_id`).
+4. Optimistic connect succeeds against the existing parent-spawned sidecar — no second sidecar, no flock contention.
+
+In practice this means: **call `init()` once in the master, do nothing in the children**. The fork hook does the rest.
+
+## When the master can't init
+
+Some setups don't want the master process to send a startup notification, or want each worker to choose its own `service` name. Then init in the post-fork hook instead — same socket path is reused.
+
+### gunicorn
+
+Default: init in master.
+
+```python
+# gunicorn_conf.py
+import snitchbot
+
+def on_starting(server):
+    snitchbot.init("api")
+```
+
+Per-worker init (when you want each worker to register independently):
+
+```python
+# gunicorn_conf.py
+import snitchbot
+
+def post_fork(server, worker):
+    snitchbot.init("api", role="worker")
+```
+
+`role` is a free-form string carried in the registration event; useful when one fleet has both `master` and `worker` roles you want to distinguish in the dashboard.
+
+### uvicorn (`--workers N`)
+
+Uvicorn's worker manager forks before importing the app. The simplest path is to init at module import inside your ASGI module — every worker imports it after the fork.
+
+```python
+# app.py
+import snitchbot
+snitchbot.init("api")
+
+from litestar import Litestar
+app = Litestar(...)
+```
+
+Calling `init()` in the master separately would also work via the fork hook, but uvicorn's worker reload story is cleaner if each worker initialises itself.
+
+### Celery prefork
+
+```python
+import snitchbot
+from celery import Celery
+from celery.signals import worker_process_init
+
+app = Celery("worker")
+
+
+@worker_process_init.connect
+def _init(**_) -> None:
+    snitchbot.init("celery-worker")
+```
+
+`worker_process_init` fires once per forked worker process, after the fork — same effect as gunicorn's `post_fork`. Don't init in the Celery master; it would spawn a sidecar that nobody uses.
+
+## Notes
+
+- All workers share **one** sidecar. The dedup window, rate-limit bucket, and mute state are global per `(service, token, chat_id)`. A noisy log line from worker 7 collapses with the same line from worker 2 — that's usually what you want.
+- Workers register independently; the live dashboard shows one row per PID. PID reuse is detected via `psutil.Process.create_time()` (V4) — a recycled PID with a different start time is treated as a fresh client.
+- If you fork without going through one of the integration points above (`os.fork()` directly, raw `multiprocessing` without `spawn`), the at-fork hook still runs — you don't need to call `init()` in the child manually.
+- On Windows, `os.register_at_fork` is unavailable; the call is silently skipped. Forking on Windows is `multiprocessing` with `spawn`, which re-imports the module and runs `init()` from scratch — no fork hook needed.
+- Reinit after fork is best-effort. If the child's `_init_impl` raises, snitchbot stays in degraded mode in that worker — the parent keeps working. You'll see a `init_conflict` or `internal_errors` count in the host stats.

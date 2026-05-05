@@ -1,0 +1,115 @@
+---
+title: Request-scoped context
+section: cookbook
+order: 5
+watermark: 方
+summary: "Attach trace_id, tenant, and request metadata once at the boundary; have every alert inside that scope carry it for free."
+---
+
+# Request-scoped context
+
+A multi-tenant API. An alert fires deep in `invoices.generate()`. You want `tenant_id` on the message — without threading it through six function signatures or remembering to pass `extras=` at every call site.
+
+## When to use
+
+- You operate a request/task boundary (HTTP middleware, Celery task, RQ worker, gRPC interceptor) and want every alert raised inside it to inherit the same metadata.
+- The same value (`tenant_id`, `trace_id`, `region`) should land on `notify()`, `setup_logging()` warnings, watchdog stalls, and crash reports — not just one of them.
+- You don't want to write or maintain a custom log adapter.
+
+## The recipe
+
+`request_context()` is a contextmanager backed by `contextvars`. It propagates through `await` and `asyncio.create_task` natively. It does **not** propagate through `threading.Thread` — wrap with `contextvars.copy_context().run(...)` if you need that.
+
+### Litestar / FastAPI / Starlette (ASGI)
+
+```python
+from collections.abc import Awaitable, Callable
+import snitchbot
+from litestar import Litestar, Request
+from litestar.middleware import AbstractMiddleware
+from litestar.types import Receive, Scope, Send
+
+snitchbot.init("billing")
+
+
+class TenantScopeMiddleware(AbstractMiddleware):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        request = Request(scope)
+        with snitchbot.request_context(
+            trace_id=request.headers.get("x-request-id"),
+            tenant_id=request.state.tenant.id,
+            region=request.state.tenant.region,
+        ):
+            await self.app(scope, receive, send)
+
+
+app = Litestar(middleware=[TenantScopeMiddleware])
+```
+
+The Starlette/FastAPI version is the same shape — install via `app.add_middleware(...)`.
+
+### Flask
+
+```python
+import snitchbot
+from flask import Flask, g, request
+
+snitchbot.init("billing")
+app = Flask(__name__)
+
+
+@app.before_request
+def _open_scope() -> None:
+    g.snitchbot_scope = snitchbot.request_context(
+        trace_id=request.headers.get("X-Request-ID"),
+        tenant_id=g.tenant.id,
+    )
+    g.snitchbot_scope.__enter__()
+
+
+@app.teardown_request
+def _close_scope(exc: BaseException | None) -> None:
+    scope = g.pop("snitchbot_scope", None)
+    if scope is not None:
+        scope.__exit__(type(exc) if exc else None, exc, exc.__traceback__ if exc else None)
+```
+
+Flask handles requests on threads, but `before_request` and `teardown_request` run on the same thread for the same request, so the contextvar set in one is still visible in the other.
+
+### Celery
+
+```python
+import snitchbot
+from celery import Celery
+from celery.signals import task_prerun, task_postrun
+
+snitchbot.init("worker")
+app = Celery("worker")
+
+_scopes: dict[str, object] = {}
+
+
+@task_prerun.connect
+def _open(task_id: str, task, args, kwargs, **_) -> None:
+    cm = snitchbot.request_context(
+        trace_id=task_id,
+        task_name=task.name,
+        retry=task.request.retries,
+    )
+    cm.__enter__()
+    _scopes[task_id] = cm
+
+
+@task_postrun.connect
+def _close(task_id: str, **_) -> None:
+    cm = _scopes.pop(task_id, None)
+    if cm is not None:
+        cm.__exit__(None, None, None)
+```
+
+## Notes
+
+- Nested `request_context()` blocks merge: inner `extras` override outer keys; `trace_id` inherits from the enclosing block when omitted (CI29, CI30). This is what you want for sub-spans inside a request.
+- `trace_id=None` is preserved as `None`. Snitchbot will not synthesize an ID for you (CI28) — pass one in or accept that the alert has no `trace_id`.
+- The same context flows into structlog and stdlib logging via [`setup_logging()`](../api/setup-logging) / [`setup-structlog()`](../api/setup-structlog) — a `log.warning(...)` inside the block carries the same `trace_id` and extras as a direct `notify()`.
+- In thread pools (`concurrent.futures.ThreadPoolExecutor`), wrap submitted callables with `contextvars.copy_context().run(...)` to forward the current context. Without it, the worker thread sees no scope.

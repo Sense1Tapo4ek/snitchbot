@@ -19,6 +19,7 @@ class ITelegramGateway(Protocol):
         parse_mode: str = "HTML",
         reply_markup: dict | None = None,
         reply_to_message_id: int | None = None,
+        message_thread_id: int | None = None,
     ) -> int:
         """Send a message. Returns Telegram message_id."""
         ...

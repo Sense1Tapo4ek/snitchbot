@@ -1,0 +1,47 @@
+---
+title: Encode version in the service name
+section: cookbook
+order: 2
+watermark: 方
+summary: "Stamp the running version into every alert by passing it through the service argument."
+---
+
+# Encode version in the service name
+
+Two pods running, one on `v1.8.3`, one stuck on `v1.8.2` because the rollout didn't take. An alert fires. You want to know which one — without adding `extras={"version": ...}` to every call site.
+
+## When to use
+
+- Multiple replicas may run different versions briefly (rolling deploy, canary, blue/green).
+- You want each version visible in the message header, not buried in `Extras`.
+- You want the deploy itself to leave a marker in the chat without writing a custom startup `notify()`.
+
+## The recipe
+
+```python
+import os
+import snitchbot
+from myapp import __version__
+
+# Released app
+snitchbot.init(f"billing@{__version__}")
+
+# Or, for an unreleased service, fall back to the git SHA
+GIT_SHA = os.environ.get("GIT_SHA", "dev")[:7]
+snitchbot.init(f"checkout@{GIT_SHA}")
+```
+
+The `service` field becomes part of every alert header:
+
+```
+🟠 notify · billing@1.8.3 · a1b2c3
+```
+
+Every lifecycle event (`startup`, `shutdown`) carries the same string, so a deploy naturally produces a `shutdown billing@1.8.2` followed by `startup billing@1.8.3` in the chat — that is your version-drift trail.
+
+## Notes
+
+- `service` is also the dedup partition. `billing@1.8.3` and `billing@1.8.4` are independent for dedup, mute, and rate-limit. That's what you want for canaries, but it means a noisy alert won't be auto-collapsed across versions — the `× N` counter resets on every release.
+- In [forum mode](../guide/forum-mode), each unique `service` gets its own topic. Bumping the version creates a new topic on every deploy. If your fleet ships hourly, prefer encoding only the major/minor (`billing@1.8`) and keep the patch in `extras`.
+- Mute targets the fingerprint, not the service. `/mute <fp> 1h` from the old version's topic does **not** silence the same alert on the new version. If that's the goal, mute by service name explicitly — see the `/mute` reference in the [getting started guide](../guide/getting-started).
+- The `service` validator only requires a non-empty string. Anything Telegram's HTML renderer accepts is fine; keep it short — long headers wrap awkwardly on mobile.

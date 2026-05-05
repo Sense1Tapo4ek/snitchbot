@@ -133,33 +133,6 @@ class TestResolveTopicForumMode:
         assert kwargs["service"] == "orders-api"
         assert kwargs["icon_color"] in TOPIC_COLOR_PALETTE
 
-    async def test_override_color_is_respected(
-        self, mock_gateway, mock_set_commands_uc, forum_mode_capable, registry,
-    ):
-        """
-        Given a _color_overrides mapping for the service,
-        When resolve_topic is called,
-        Then the use case receives the exact overridden color.
-        """
-        # Arrange
-        resolve_uc = AsyncMock(return_value=77)
-        chosen = TOPIC_COLOR_PALETTE[3]
-        facade = TelegramIOFacade(
-            _gateway=mock_gateway,
-            _set_commands_uc=mock_set_commands_uc,
-            _forum_mode=forum_mode_capable,
-            _registry=registry,
-            _resolve_topic_uc=resolve_uc,
-            _color_overrides={"orders-api": chosen},
-        )
-
-        # Act
-        await facade.resolve_topic(service="orders-api")
-
-        # Assert
-        resolve_uc.assert_awaited_once_with(service="orders-api", icon_color=chosen)
-
-
 class TestReverseLookup:
     def test_reverse_lookup_returns_registered_service(
         self, mock_gateway, mock_set_commands_uc, forum_mode_capable, registry,

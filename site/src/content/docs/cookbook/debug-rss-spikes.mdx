@@ -1,0 +1,78 @@
+---
+title: Debug RSS spikes
+section: cookbook
+order: 3
+watermark: 方
+summary: "From a memory anomaly ping to a postmortem in three commands, without attaching a profiler."
+---
+
+# Debug RSS spikes
+
+The bot pings: memory ceiling crossed. Half an hour later the pod was OOM-killed. You want to know what the curve looked like and what the service was doing at the spike — before SSHing anywhere.
+
+## When to use
+
+- RSS or CPU anomalies that fire often enough to want a fast triage loop.
+- You don't have a metrics stack, or the metrics stack doesn't sample fast enough to see the spike.
+- The process forks subprocesses (Playwright, ffmpeg, multiprocessing pool) — `own` RSS lies, you need the aggregate.
+
+## The recipe
+
+### 1. Tune the detector to the shape of your problem
+
+```python
+import snitchbot
+from snitchbot import AnomalyConfig, RssAnomalyConfig, CpuAnomalyConfig
+
+snitchbot.init(
+    "checkout",
+    anomaly=AnomalyConfig(
+        rss=RssAnomalyConfig(
+            max_mb=800,           # ceiling — hard limit, severity=error
+            spike_ratio=1.6,      # spike — current / baseline >= 1.6
+            min_spike_mb=80,      # ignore spikes smaller than 80 MB
+            duration="1m",        # current window
+            baseline_duration="20m",  # baseline window
+        ),
+        # If the service spawns child processes, opt into aggregate detection.
+        total_rss=RssAnomalyConfig(max_mb=2000, spike_ratio=1.8),
+        cpu=CpuAnomalyConfig(max_percent=90, spike_ratio=2.5),
+    ),
+    sample_interval_sec=5,  # default; raise to 10–15s for low-overhead idle services
+)
+```
+
+`max_mb` is the ceiling mode — fires when current RSS exceeds the limit. `spike_ratio` is relative growth — current window mean ÷ baseline window mean. Set any of `max_mb`, `spike_ratio`, `drop_ratio` to `None` to disable that mode independently.
+
+### 2. Attach context that survives into the alert
+
+Inside request handling, wrap the unit of work so the alert carries enough to reproduce:
+
+```python
+with snitchbot.request_context(
+    trace_id=request_id,
+    user_id=user_id,
+    endpoint="/checkout/finalize",
+):
+    finalize_order(...)
+```
+
+If the anomaly fires while this block is on the stack, the alert renders a `Context` block with those keys. That is usually enough to find the offending request in the application log.
+
+### 3. Pull a chart from the sidecar after the ping
+
+In the chat, send to the bot:
+
+```
+/chart total_mem 30m
+/chart cpu 10m
+```
+
+The sidecar renders an ASCII chart from its in-memory vitals deque. The window must fit the deque — see `sample_interval_sec × maxlen` in the warning the client logs at startup. Default config holds ~5 minutes; raise the window via custom anomaly durations or accept that the deque caps the chart.
+
+## Notes
+
+- `max_history_seconds()` is computed from your `AnomalyConfig`; the deque is sized to fit the longest baseline window across all enabled detectors. If you want `/chart … 1h` to work, set at least one detector's `baseline_duration` to `"1h"`.
+- `total_rss` and `total_cpu` aggregate the parent process and **all** descendants from `psutil.Process.children(recursive=True)`. Children that exit between samples or deny access (`AccessDenied`) are silently skipped (V11). The `/status` row shows `own / total / children` — large gaps between own and total mean a leak in a worker, not in the parent.
+- The detector compares window means, not raw points. A single one-second spike won't trip `spike_ratio` if the window is `"1m"` — that is the design. If you need point-in-time alerting, lower `duration` or use the `max_mb` ceiling.
+- The full anomaly model is in [Configuring anomalies](../guide/configuring-anomalies); per-class details in [`RssAnomalyConfig`](../api/rss-anomaly-config) and [`CpuAnomalyConfig`](../api/cpu-anomaly-config).

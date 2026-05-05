@@ -1,7 +1,6 @@
-import pytest
 from snitchbot.sidecar.telegram_io.domain.services.topic_color_service import (
-    TopicColorService,
     TOPIC_COLOR_PALETTE,
+    TopicColorService,
 )
 
 
@@ -21,11 +20,3 @@ class TestTopicColorService:
         seen = {TopicColorService.color_for(f"svc-{i}") for i in range(50)}
         # We can't guarantee all 7 with 50 inputs, but >= 5 distinct is realistic.
         assert len(seen) >= 5
-
-    def test_explicit_override_returns_that_color(self):
-        chosen = TOPIC_COLOR_PALETTE[3]
-        assert TopicColorService.color_for("anything", override=chosen) == chosen
-
-    def test_explicit_override_outside_palette_raises(self):
-        with pytest.raises(ValueError, match="palette"):
-            TopicColorService.color_for("x", override=999999)

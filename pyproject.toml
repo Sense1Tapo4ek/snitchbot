@@ -1,6 +1,6 @@
 [project]
 name = "snitchbot"
-version = "1.1.0"
+version = "1.2.0"
 description = "Telegram telemetry: crash reports, slow calls, watchdog and anomaly alerts for Python services"
 readme = "README.md"
 authors = [

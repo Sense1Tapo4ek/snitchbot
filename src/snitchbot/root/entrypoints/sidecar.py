@@ -224,6 +224,7 @@ def main() -> None:
             "kind": "lifecycle",
             "severity": "warning",
             "pid": pid,
+            "service": service,
             "trace_id": None,
             "context": None,
             "payload": {
@@ -297,7 +298,10 @@ def main() -> None:
                     break
                 await asyncio.sleep(0.1)
 
-        # ─── Forum-mode detection (Invariant F1) ─────────────────────────
+        # ─── Per-service topics: auto-detect chat capabilities ───────────
+        # Topics are activated iff the chat is a forum supergroup AND the bot
+        # has `can_manage_topics`. Otherwise the sidecar sends every message
+        # to the chat without a thread id (no degradation in functionality).
         from snitchbot.sidecar.telegram_io.app.use_cases.resolve_topic_uc import (
             ResolveTopicUseCase,
         )
@@ -310,32 +314,30 @@ def main() -> None:
         )
 
         forum_mode = ForumModeVO(is_forum=False, can_manage_topics=None)
-        if config.forum is not False:  # "auto" or True
-            try:
-                chat = await gateway.get_chat(chat_id=config.chat_id)
-                chat_is_forum = bool(chat.get("is_forum", False))
-                effective_is_forum = chat_is_forum or (config.forum is True)
-                if effective_is_forum:
-                    me = await gateway.get_me()
-                    member = await gateway.get_chat_member(
-                        chat_id=config.chat_id, user_id=int(me["id"]),
-                    )
-                    rights = bool(member.get("can_manage_topics", False))
-                    forum_mode = ForumModeVO(
-                        is_forum=effective_is_forum,
-                        can_manage_topics=rights,
-                    )
-                    if not forum_mode.fully_capable:
-                        logger.warning(
-                            "forum mode requested but bot lacks "
-                            "can_manage_topics — falling back to General "
-                            "topic for all sends.",
-                        )
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "forum-mode detection failed: %r — defaulting to simple mode.",
-                    exc,
+        try:
+            chat = await gateway.get_chat(chat_id=config.chat_id)
+            if bool(chat.get("is_forum", False)):
+                me = await gateway.get_me()
+                member = await gateway.get_chat_member(
+                    chat_id=config.chat_id, user_id=int(me["id"]),
                 )
+                rights = bool(member.get("can_manage_topics", False))
+                forum_mode = ForumModeVO(
+                    is_forum=True,
+                    can_manage_topics=rights,
+                )
+                if not rights:
+                    logger.info(
+                        "chat is a forum but bot lacks can_manage_topics — "
+                        "sending all messages to the chat without per-service "
+                        "topics.",
+                    )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "topic-capability detection failed: %r — sending all messages "
+                "to the chat without per-service topics.",
+                exc,
+            )
 
         # ─── Topic registry + persistence ────────────────────────────────
         state_dir = Path(config.socket_path).parent
@@ -343,10 +345,6 @@ def main() -> None:
         topic_store = JsonFileTopicStore(topics_path)
         topic_registry = TopicRegistry()
         topic_registry.bulk_load(topic_store.load())
-
-        color_overrides: dict[str, int] = {}
-        if config.topic_color is not None:
-            color_overrides[config.sidecar_service] = config.topic_color
 
         resolve_topic_uc = ResolveTopicUseCase(
             _registry=topic_registry,
@@ -362,7 +360,6 @@ def main() -> None:
             _forum_mode=forum_mode,
             _registry=topic_registry,
             _resolve_topic_uc=resolve_topic_uc,
-            _color_overrides=color_overrides,
         )
 
         # ─── Facade-dependent use cases + routers ────────────────────────

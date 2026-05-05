@@ -57,8 +57,6 @@ def init(
     live_dashboard: bool = True,
     sample_interval_sec: int = 5,
     chart_width: int = 35,
-    forum: bool | str = "auto",
-    topic_color: int | None = None,
 ) -> None:
     """Initialize snitchbot. The only public function that may raise (P8).
 
@@ -100,17 +98,6 @@ def init(
         raise ValueError(
             f"sample_interval_sec must be int in [1, 60], got {sample_interval_sec!r}"
         )
-    # F1: forum mode validation
-    if not (isinstance(forum, bool) or forum == "auto"):
-        raise ValueError(f"forum must be True, False, or 'auto', got {forum!r}")
-    if topic_color is not None:
-        from snitchbot.sidecar.telegram_io.domain.services.topic_color_service import (
-            TOPIC_COLOR_PALETTE,
-        )
-        if topic_color not in TOPIC_COLOR_PALETTE:
-            raise ValueError(
-                f"topic_color {topic_color!r} not in Telegram palette {TOPIC_COLOR_PALETTE}"
-            )
 
     # Log estimated vitals cache size (client-side visibility)
     import math as _math
@@ -158,15 +145,6 @@ def init(
         # 4d. Propagate chart_width to sidecar via env var
         if chart_width != 35:
             os.environ["SNITCHBOT_CHART_WIDTH"] = str(chart_width)
-
-        # 4e. Propagate forum + topic_color to sidecar via env vars (F1)
-        if forum is True:
-            os.environ["SNITCHBOT_FORUM"] = "true"
-        elif forum is False:
-            os.environ["SNITCHBOT_FORUM"] = "false"
-        # "auto" -> leave unset; sidecar default is "auto"
-        if topic_color is not None:
-            os.environ["SNITCHBOT_TOPIC_COLOR"] = str(topic_color)
 
         # 5. Runtime init — may fail, never raises to caller (I2)
         try:

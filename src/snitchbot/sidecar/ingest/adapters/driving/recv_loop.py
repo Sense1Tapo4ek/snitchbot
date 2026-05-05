@@ -132,6 +132,12 @@ class RecvLoop:
             ):
                 client_state.shutdown_received = True
 
+            # Enrich with service from registered client_state — events from
+            # clients carry no `service` field; the dispatcher needs it to
+            # route to the correct per-service topic.
+            if not msg.get("service") and client_state.service:
+                msg = {**msg, "service": client_state.service}
+
             fp = self._fingerprint_fn(msg) if self._fingerprint_fn is not None else None
 
             if self._enqueue_fn is not None:

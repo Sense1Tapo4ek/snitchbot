@@ -1,0 +1,83 @@
+---
+title: Task completion ping
+section: cookbook
+order: 1
+watermark: 方
+summary: "Wrap a long-running job so failures and overruns ping you, without polluting the chat on every success."
+---
+
+# Task completion ping
+
+Cron job, training run, ETL, nightly batch. You only want to hear about it when something is wrong — or when something interesting took longer than it should.
+
+## When to use
+
+- A job runs for minutes/hours and you don't want to tail logs to know if it finished.
+- Failure has to surface with a traceback, not a silent non-zero exit.
+- You want a duration budget enforced separately from "did it crash".
+
+## The recipe
+
+```python
+import functools
+import time
+from collections.abc import Callable
+from typing import TypeVar, ParamSpec
+
+import snitchbot
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+snitchbot.init("nightly-etl")
+
+
+def notify_completion(
+    name: str,
+    *,
+    budget_sec: float | None = None,
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """Notify on failure (always) and on overrun (if budget_sec is set)."""
+
+    def deco(fn: Callable[P, R]) -> Callable[P, R]:
+        @functools.wraps(fn)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            t0 = time.monotonic()
+            try:
+                return fn(*args, **kwargs)
+            except BaseException as exc:
+                snitchbot.notify(
+                    f"{name} failed",
+                    severity="error",
+                    extras={"duration_s": round(time.monotonic() - t0, 1)},
+                    exc_info=exc,
+                )
+                raise
+            finally:
+                elapsed = time.monotonic() - t0
+                if budget_sec is not None and elapsed > budget_sec:
+                    snitchbot.notify(
+                        f"{name} over budget",
+                        severity="warning",
+                        extras={
+                            "duration_s": round(elapsed, 1),
+                            "budget_s": budget_sec,
+                        },
+                    )
+
+        return wrapper
+
+    return deco
+
+
+@notify_completion("warehouse refresh", budget_sec=15 * 60)
+def refresh_warehouse() -> None:
+    ...
+```
+
+## Notes
+
+- Failures use `severity="error"` (🔴) so they pass any `warning`-level mute. The traceback rides on `exc_info=exc`.
+- There is no `severity="success"` — snitchbot only emits `warning`, `error`, `critical`. If you genuinely want a "done OK" ping, send `notify(f"{name} done", severity="warning")` and accept the orange icon. Most teams find a no-news-is-good-news contract calmer.
+- For functions with a hard wall-clock SLO, `@watch_slow(threshold_ms=...)` gives you the same overrun signal with sidecar-side dedup; see [`watch_slow()`](../api/watch-slow). Combine the two when you need both fail-traceback and dedup.
+- The decorator works for sync functions only. For async tasks, replace `def wrapper` with `async def wrapper` and `await fn(...)`.

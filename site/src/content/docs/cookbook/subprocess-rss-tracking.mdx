@@ -1,0 +1,58 @@
+---
+title: Track memory across subprocesses
+section: cookbook
+order: 4
+watermark: 方
+summary: "Make memory anomalies see your ffmpeg, Playwright, and multiprocessing children — not just the Python parent."
+---
+
+# Track memory across subprocesses
+
+A scraper using Playwright. A media service shelling out to ffmpeg. A worker pool spawned via `multiprocessing.Pool`. The Python parent stays under 200 MB; the box is at 12 GB. A detector watching only `own` RSS will never fire.
+
+## When to use
+
+- The service uses `subprocess`, `multiprocessing`, or any library that forks (Playwright, Selenium, ffmpeg, headless Chromium, gunicorn under `--preload`).
+- OOM-kills happen but the parent process looks healthy in your metrics.
+- You need a single number that means "the box's view of this service".
+
+## The recipe
+
+```python
+import snitchbot
+from snitchbot import AnomalyConfig, RssAnomalyConfig, CpuAnomalyConfig
+
+snitchbot.init(
+    "scraper",
+    anomaly=AnomalyConfig(
+        # Keep "own" detection conservative — the parent shouldn't grow much.
+        rss=RssAnomalyConfig(max_mb=400),
+        # Aggregate detection — the real story for fork-heavy services.
+        total_rss=RssAnomalyConfig(
+            max_mb=4000,           # hard ceiling on parent + children
+            spike_ratio=1.5,
+            min_spike_mb=200,      # ignore < 200 MB spikes — children are noisy
+            baseline_duration="10m",
+        ),
+        total_cpu=CpuAnomalyConfig(max_percent=600),  # 6 cores at 100%
+    ),
+)
+```
+
+`total_rss` and `total_cpu` are **opt-in**. They default to `None` because most services don't fork and the recursive `psutil` walk is wasted work. Once enabled, every tick calls `proc.children(recursive=True)` and sums RSS/CPU/child count into the snapshot.
+
+In the chat, the live dashboard and `/status` render a per-client row as `own / total / children`:
+
+```
+checkout    rss 180MB / 3.2GB / 7
+```
+
+A widening gap between `own` and `total` is the signal: the parent is fine, a worker is leaking.
+
+## Notes
+
+- The default `sample_interval_sec=5` is fine until you have many children. Each tick walks the descendant tree; for services with hundreds of short-lived workers, raise it to `10`–`15`. The trade-off is detection latency: a spike that resolves between samples is invisible.
+- Children that exit between two samples raise `psutil.NoSuchProcess`, which is silently swallowed (invariant V11). You won't get false positives from cleanup, and you won't get a notification when a child dies — only when the aggregate crosses a threshold.
+- Forked children inherit the parent's `os.register_at_fork` hook (CI37/CI38). Each child auto-reinits and reconnects to the same sidecar via the shared socket path — see [Forking workers](./forking-workers) for the full story.
+- The sidecar's own RSS and CPU are not included in the aggregate. If you're chasing a memory ceiling at the host level, add the sidecar overhead (~20–40 MB) manually.
+- For the per-detector knobs, see [`RssAnomalyConfig`](../api/rss-anomaly-config) and [`CpuAnomalyConfig`](../api/cpu-anomaly-config).

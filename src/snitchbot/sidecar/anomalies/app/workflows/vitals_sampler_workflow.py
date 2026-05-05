@@ -103,6 +103,7 @@ class VitalsSamplerWorkflow:
             "kind": "anomaly",
             "severity": result.get("severity", "warning"),
             "pid": client.pid,
+            "service": client.service,
             "trace_id": None,
             "context": None,
             "payload": {

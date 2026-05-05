@@ -38,7 +38,6 @@ class TelegramIOFacade:
     _forum_mode: ForumModeVO = field(default_factory=_default_forum_mode)
     _registry: TopicRegistry = field(default_factory=TopicRegistry)
     _resolve_topic_uc: ResolveTopicUseCase | None = None
-    _color_overrides: dict[str, int] = field(default_factory=dict)
 
     @property
     def forum_mode(self) -> ForumModeVO:
@@ -52,6 +51,7 @@ class TelegramIOFacade:
         parse_mode: str = "HTML",
         reply_markup: dict[str, Any] | None = None,
         reply_to_message_id: int | None = None,
+        message_thread_id: int | None = None,
     ) -> int:
         return await self._gateway.send_message(
             chat_id=chat_id,
@@ -59,6 +59,7 @@ class TelegramIOFacade:
             parse_mode=parse_mode,
             reply_markup=reply_markup,
             reply_to_message_id=reply_to_message_id,
+            message_thread_id=message_thread_id,
         )
 
     async def edit_message_text(
@@ -116,22 +117,21 @@ class TelegramIOFacade:
         await self._set_commands_uc()
 
     async def resolve_topic(self, *, service: str) -> int | None:
-        """Forum mode: return message_thread_id (creates on cache miss).
+        """Return ``message_thread_id`` for a service (creates on cache miss).
 
-        Returns None when degraded (no topic rights) — caller falls back to General.
-        Returns None unconditionally in simple mode.
+        Returns ``None`` when per-service topics are not active for this chat
+        (chat is not a forum, or bot lacks ``can_manage_topics``); the caller
+        sends the message to the chat without a thread id.
         """
         if not self._forum_mode.fully_capable:
             return None
         if self._resolve_topic_uc is None:
             return None
-        color = TopicColorService.color_for(
-            service, override=self._color_overrides.get(service),
-        )
+        color = TopicColorService.color_for(service)
         return await self._resolve_topic_uc(service=service, icon_color=color)
 
     def reverse_lookup(self, message_thread_id: int) -> str | None:
-        """Forum mode: return service name bound to a thread id, or None."""
+        """Return the service name bound to a thread id, or ``None``."""
         return self._registry.reverse_lookup(message_thread_id)
 
     def invalidate_topic(self, service: str) -> None:
