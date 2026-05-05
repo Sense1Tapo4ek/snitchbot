@@ -59,6 +59,68 @@ const {
   <script>
     import { initDrawer } from "../components/docs/drawer";
     initDrawer();
+
+    // Wrap each Shiki <pre> with a header (language label + copy button).
+    const LANG_LABEL: Record<string, string> = {
+      python: "Python",
+      bash: "Shell",
+      shell: "Shell",
+      sh: "Shell",
+      ts: "TypeScript",
+      typescript: "TypeScript",
+      js: "JavaScript",
+      javascript: "JavaScript",
+      json: "JSON",
+      yaml: "YAML",
+      yml: "YAML",
+      toml: "TOML",
+      text: "Text",
+      plaintext: "Text",
+    };
+
+    document.querySelectorAll<HTMLPreElement>(".reading__inner pre.astro-code").forEach((pre) => {
+      if (pre.parentElement?.classList.contains("code-wrap")) return;
+
+      const lang = pre.dataset.language ?? "text";
+      const label = LANG_LABEL[lang] ?? lang;
+
+      const wrap = document.createElement("div");
+      wrap.className = "code-wrap";
+
+      const head = document.createElement("div");
+      head.className = "code-wrap__head";
+
+      const langSpan = document.createElement("span");
+      langSpan.className = "code-wrap__lang";
+      langSpan.textContent = label;
+
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "code-wrap__copy";
+      copyBtn.textContent = "Copy";
+      copyBtn.setAttribute("aria-label", "Copy code to clipboard");
+
+      copyBtn.addEventListener("click", async () => {
+        const code = pre.querySelector("code")?.innerText ?? pre.innerText;
+        try {
+          await navigator.clipboard.writeText(code);
+          copyBtn.textContent = "Copied";
+          copyBtn.classList.add("is-copied");
+          setTimeout(() => {
+            copyBtn.textContent = "Copy";
+            copyBtn.classList.remove("is-copied");
+          }, 1600);
+        } catch {
+          copyBtn.textContent = "Failed";
+          setTimeout(() => (copyBtn.textContent = "Copy"), 1600);
+        }
+      });
+
+      head.append(langSpan, copyBtn);
+
+      pre.parentElement?.insertBefore(wrap, pre);
+      wrap.append(head, pre);
+    });
   </script>
 </BaseLayout>
 
@@ -127,6 +189,69 @@ const {
     border: none;
     border-top: 1px solid rgba(138, 122, 95, 0.25);
     margin: 2rem 0;
+  }
+
+  /* Markdown code blocks (Shiki output) */
+  .reading__inner :global(.code-wrap) {
+    position: relative;
+    margin: 1.4rem 0;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #24292e;
+    box-shadow:
+      0 4px 16px rgba(30, 26, 21, 0.10),
+      0 18px 32px rgba(30, 26, 21, 0.06);
+  }
+  .reading__inner :global(.code-wrap__head) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px 8px 14px;
+    background: #1f2429;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #8a99a8;
+  }
+  .reading__inner :global(.code-wrap__lang) {
+    font-weight: 600;
+  }
+  .reading__inner :global(.code-wrap__copy) {
+    appearance: none;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #c8d0d8;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    padding: 3px 9px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .reading__inner :global(.code-wrap__copy:hover) {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+  .reading__inner :global(.code-wrap__copy.is-copied) {
+    color: #28c840;
+    border-color: rgba(40, 200, 64, 0.4);
+  }
+  .reading__inner :global(.code-wrap > pre.astro-code) {
+    margin: 0;
+    border-radius: 0;
+    padding: 14px 16px;
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
+  .reading__inner :global(pre.astro-code code) {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
   }
 
   .drawer-btn {

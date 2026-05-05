@@ -63,12 +63,46 @@ If the anomaly fires while this block is on the stack, the alert renders a `Cont
 
 In the chat, send to the bot:
 
-```
+```text
 /chart total_mem 30m
 /chart cpu 10m
 ```
 
 The sidecar renders an ASCII chart from its in-memory vitals deque. The window must fit the deque — see `sample_interval_sec × maxlen` in the warning the client logs at startup. Default config holds ~5 minutes; raise the window via custom anomaly durations or accept that the deque caps the chart.
+
+### What the reply looks like
+
+```text
+📊 chart · checkout · total_mem · 30m
+━━━━━━━━━━━━━━━━━━
+RSS (30m)  cur=1842.3MB  min=412.8  max=1908.6
+ 1908.60  ┤                                ╭─╮  ╭─
+ 1659.27  ┤                              ╭─╯ ╰──╯
+ 1409.93  ┤                          ╭───╯
+ 1160.60  ┤                      ╭───╯
+  911.27  ┤                ╭─────╯
+  661.93  ┤      ╭─────────╯
+  412.60  ┼──────╯
+2026-05-05 12:33:11 UTC -> 2026-05-05 13:03:12 UTC
+```
+
+How to read it:
+
+- **Y-axis** is the metric value in its native unit — MB for `mem`/`total_mem`, percent for `cpu`/`total_cpu` (one core = 100%), absolute count for `fds`/`threads`.
+- **X-axis** is time, oldest sample on the left, newest on the right. The two timestamps under the chart bound the window.
+- **`cur` / `min` / `max`** in the header are computed over the full window — `cur` is the most recent sample, not the rightmost printed point (the chart is downsampled to fit the configured `chart_width`).
+- A **flat line followed by a slope** is the typical leak signature: the service was idle, then started growing without recovery. A leak that releases looks like a sawtooth.
+- A **single tall column with no trailing decay** means the spike happened between samples — raise `sample_interval_sec` granularity or shorten the window; one missed sample at 5 s sampling is invisible at a 30-minute window.
+- If the chart says `No live clients with vitals data.`, the sidecar has no client whose `vitals_status == 'ok'` for the resolved scope. In a forum-mode topic this is service-scoped (F7); in the General chat, it picks the first live client.
+
+To compare own vs total, fire two requests:
+
+```text
+/chart mem 30m
+/chart total_mem 30m
+```
+
+A flat `mem` line under a rising `total_mem` line is the textbook subprocess leak — see [Track memory across subprocesses](./subprocess-rss-tracking).
 
 ## Notes
 
